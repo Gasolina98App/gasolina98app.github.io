@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gasolina98 App — Buscador de gasolineras baratas</title>
-<meta name="description" content="Encuentra la gasolinera más barata de tu zona. Precios oficiales del Ministerio, actualizados a diario. La app del blog Gasolina98.">
+<meta name="description" content="Encuentra la gasolinera más barata de tu zona y lee lo último del blog de motor Gasolina98. Precios oficiales del Ministerio, actualizados a diario.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2e3160">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,7 +15,7 @@
 <style>
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f7fa;color:#222;
-       padding-bottom:env(safe-area-inset-bottom);}
+       padding-bottom:calc(64px + env(safe-area-inset-bottom));}
   header{background:#2e3160;color:#e8e4d8;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px;}
   header img{height:40px;}
   header .t{font-weight:800;font-size:18px;letter-spacing:.5px;}
@@ -36,6 +36,18 @@
   .card .hor{font-size:12px;color:#888;margin-top:2px;}
   footer{text-align:center;font-size:12px;color:#888;padding:16px;}
   footer a{color:#2e3160;font-weight:bold;text-decoration:none;}
+  /* Pestaña Blog */
+  .post{display:flex;gap:12px;align-items:center;border:1px solid #e0e0e0;border-radius:10px;padding:10px;margin:0 0 10px;background:#fff;text-decoration:none;color:#222;}
+  .post img{width:96px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#eee;}
+  .post .pt{font-weight:bold;font-size:14px;line-height:1.3;}
+  .post .pd{font-size:12px;color:#888;margin-top:4px;}
+  /* Navegación inferior */
+  nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #dde3ea;display:flex;
+      padding-bottom:env(safe-area-inset-bottom);}
+  nav button{flex:1;background:none;border:0;padding:10px 0 8px;font-size:12px;color:#888;cursor:pointer;margin:0;border-radius:0;}
+  nav button.act{color:#2e3160;font-weight:bold;border-top:3px solid #2e3160;}
+  nav button span{display:block;font-size:20px;}
+  .hidden{display:none;}
 </style>
 </head>
 <body>
@@ -43,40 +55,92 @@
   <img src="icon-192.png" alt="Gasolina98">
   <div>
     <div class="t">GASOLINA98</div>
-    <div class="s">Buscador de gasolineras baratas · datos oficiales</div>
+    <div class="s">Gasolineras baratas y blog de motor</div>
   </div>
 </header>
 
 <main>
-  <div class="panel">
-    <select id="g98prov"><option value="">Cargando provincias…</option></select>
-    <select id="g98muni"><option value="">Todos los municipios</option></select>
-    <select id="g98prod">
-      <option value="1" selected>Gasolina 95 E5</option>
-      <option value="3">Gasolina 98 E5</option>
-      <option value="20">Gasolina 95 Premium</option>
-      <option value="4">Gasóleo A</option>
-      <option value="5">Gasóleo Premium</option>
-      <option value="6">GLP</option>
-    </select>
-    <button id="g98btn">Buscar</button>
-    <button id="g98geo">📍 Ordenar por cercanía</button>
-    <div id="g98estado"></div>
+  <!-- VISTA BUSCADOR -->
+  <div id="vista-buscador">
+    <div class="panel">
+      <select id="g98prov"><option value="">Cargando provincias…</option></select>
+      <select id="g98muni"><option value="">Todos los municipios</option></select>
+      <select id="g98prod">
+        <option value="1" selected>Gasolina 95 E5</option>
+        <option value="3">Gasolina 98 E5</option>
+        <option value="20">Gasolina 95 Premium</option>
+        <option value="4">Gasóleo A</option>
+        <option value="5">Gasóleo Premium</option>
+        <option value="6">GLP</option>
+      </select>
+      <button id="g98btn">Buscar</button>
+      <button id="g98geo">📍 Ordenar por cercanía</button>
+      <div id="g98estado"></div>
+    </div>
+    <div id="g98resultados"></div>
+    <footer>
+      Precios: Ministerio para la Transición Ecológica · Actualización diaria<br>
+      Un servicio gratuito de <a href="https://www.gasolina98.es">Gasolina98.es</a>
+    </footer>
   </div>
-  <div id="g98resultados"></div>
+
+  <!-- VISTA BLOG -->
+  <div id="vista-blog" class="hidden">
+    <div id="blogposts"><p style="color:#888;">Cargando las últimas entradas…</p></div>
+    <footer><a href="https://www.gasolina98.es">Ver el blog completo →</a></footer>
+  </div>
 </main>
 
-<footer>
-  Precios: Ministerio para la Transición Ecológica · Actualización diaria<br>
-  Un servicio gratuito de <a href="https://www.gasolina98.es">Gasolina98.es</a>, tu blog de motor
-</footer>
+<nav>
+  <button id="tab-buscador" class="act"><span>⛽</span>Gasolineras</button>
+  <button id="tab-blog"><span>📰</span>Blog</button>
+</nav>
 
 <script>
 (function(){
 var API='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/';
 var $=function(id){return document.getElementById(id);};
-var datos=[], miPos=null;
+var datos=[], miPos=null, blogCargado=false;
 
+/* ---------- Pestañas ---------- */
+function tab(cual){
+  $('vista-buscador').classList.toggle('hidden',cual!=='buscador');
+  $('vista-blog').classList.toggle('hidden',cual!=='blog');
+  $('tab-buscador').classList.toggle('act',cual==='buscador');
+  $('tab-blog').classList.toggle('act',cual==='blog');
+  if(cual==='blog'&&!blogCargado){cargarBlog();}
+}
+$('tab-buscador').addEventListener('click',function(){tab('buscador');});
+$('tab-blog').addEventListener('click',function(){tab('blog');});
+
+/* ---------- Blog (feed de Blogger vía JSONP) ---------- */
+window.g98feed=function(data){
+  blogCargado=true;
+  var cont=$('blogposts'); cont.innerHTML='';
+  var entries=(data.feed&&data.feed.entry)||[];
+  if(!entries.length){cont.innerHTML='<p>No se pudieron cargar las entradas.</p>';return;}
+  entries.forEach(function(en){
+    var url='';
+    (en.link||[]).forEach(function(l){if(l.rel==='alternate')url=l.href;});
+    var img=en.media$thumbnail?en.media$thumbnail.url.replace(/\/s72(-c)?\//,'/w400-h300-c/'):'';
+    var fecha=new Date(en.published.$t);
+    var meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    var a=document.createElement('a');
+    a.className='post'; a.href=url; a.target='_blank'; a.rel='noopener';
+    a.innerHTML=(img?'<img src="'+img+'" alt="" loading="lazy">':'')
+      +'<div><div class="pt">'+en.title.$t+'</div>'
+      +'<div class="pd">'+fecha.getDate()+' '+meses[fecha.getMonth()]+' '+fecha.getFullYear()+'</div></div>';
+    cont.appendChild(a);
+  });
+};
+function cargarBlog(){
+  var s=document.createElement('script');
+  s.src='https://www.gasolina98.es/feeds/posts/default?alt=json-in-script&max-results=15&callback=g98feed';
+  s.onerror=function(){$('blogposts').innerHTML='<p>No se pudieron cargar las entradas. <a href="https://www.gasolina98.es">Abrir el blog</a></p>';};
+  document.body.appendChild(s);
+}
+
+/* ---------- Buscador ---------- */
 var COLOR={'1':'#1e9e4a','20':'#0e6b32','3':'#c8102e','4':'#333333','5':'#1560bd','6':'#f39200'};
 function colorAct(){return COLOR[$('g98prod').value]||'#2e3160';}
 function num(s){return parseFloat(String(s).replace(',','.'));}
@@ -164,7 +228,7 @@ $('g98geo').addEventListener('click',function(){
   },function(){estado('No se pudo obtener la ubicación (revisa los permisos).');});
 });
 
-// Registro del service worker (la magia PWA)
+// Registro del service worker
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js');
 }
