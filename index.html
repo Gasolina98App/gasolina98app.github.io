@@ -100,7 +100,7 @@
   <!-- VISTA BLOG -->
   <div id="vista-blog" class="hidden">
     <div id="blogposts"><p style="color:#888;">Cargando las últimas entradas…</p></div>
-    <footer><a href="https://www.gasolina98.es">Ver el blog completo →</a></footer>
+    <footer><a id="link-blog-completo" href="https://www.gasolina98.es">Ver el blog completo →</a></footer>
   </div>
 </main>
 
@@ -224,6 +224,14 @@ function buscar(){
     datos=(d.ListaEESSPrecio||[]).filter(function(e){return num(e.PrecioProducto)>0;});
     pintar();
   }).catch(function(){estado('Error consultando los precios. Comprueba tu conexión.');});
+  // Evento GA4: búsqueda realizada
+  if(typeof gtag==='function'){
+    gtag('event','busqueda_gasolineras',{
+      provincia: $('g98prov').options[$('g98prov').selectedIndex].text,
+      carburante: $('g98prod').options[$('g98prod').selectedIndex].text,
+      por_cercania: !!miPos
+    });
+  }
 }
 
 $('g98btn').addEventListener('click',function(){miPos=null;buscar();});
@@ -240,6 +248,20 @@ $('g98geo').addEventListener('click',function(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js');
 }
+
+/* ---------- Eventos GA4 ---------- */
+// Instalación de la PWA (Android/Chrome dispara 'appinstalled')
+window.addEventListener('appinstalled',function(){
+  if(typeof gtag==='function'){gtag('event','pwa_instalada');}
+});
+// Apertura en modo app (cuenta también iOS, que no dispara 'appinstalled')
+if(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true){
+  if(typeof gtag==='function'){gtag('event','pwa_abierta_como_app');}
+}
+// Clic en "Ver el blog completo"
+document.getElementById('link-blog-completo').addEventListener('click',function(){
+  if(typeof gtag==='function'){gtag('event','click_blog_completo');}
+});
 })();
 </script>
 </body>
