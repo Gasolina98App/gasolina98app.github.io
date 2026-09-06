@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gasolina98 App — Buscador de gasolineras baratas</title>
+<meta name="description" content="Encuentra la gasolinera más barata de tu zona. Precios oficiales del Ministerio, actualizados a diario. La app del blog Gasolina98.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2e3160">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gasolina98">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" sizes="192x192" href="icon-192.png">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f7fa;color:#222;
+       padding-bottom:env(safe-area-inset-bottom);}
+  header{background:#2e3160;color:#e8e4d8;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px;}
+  header img{height:40px;}
+  header .t{font-weight:800;font-size:18px;letter-spacing:.5px;}
+  header .s{font-size:11px;opacity:.8;}
+  main{padding:14px;max-width:640px;margin:0 auto;}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:12px;padding:14px;margin-bottom:14px;}
+  select,button{width:100%;padding:12px;border-radius:8px;font-size:16px;margin-bottom:10px;}
+  select{border:1px solid #ccc;background:#fff;}
+  #g98prod{border:2px solid #1e9e4a;font-weight:bold;}
+  #g98btn{background:#2e3160;color:#fff;border:0;font-weight:bold;cursor:pointer;}
+  #g98geo{background:#e8edf3;color:#333;border:1px solid #ccc;cursor:pointer;margin-bottom:0;}
+  #g98estado{font-size:13px;color:#666;margin-top:8px;min-height:18px;}
+  .chip{display:inline-block;color:#fff;border-radius:6px;padding:6px 14px;font-weight:bold;font-size:13px;margin:0 0 12px;}
+  .card{border:1px solid #e0e0e0;border-radius:10px;padding:12px;margin:0 0 10px;background:#fff;}
+  .card .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .card .precio{font-size:20px;font-weight:bold;}
+  .card .dir{font-size:13px;color:#555;margin-top:4px;}
+  .card .hor{font-size:12px;color:#888;margin-top:2px;}
+  footer{text-align:center;font-size:12px;color:#888;padding:16px;}
+  footer a{color:#2e3160;font-weight:bold;text-decoration:none;}
+</style>
+</head>
+<body>
+<header>
+  <img src="icon-192.png" alt="Gasolina98">
+  <div>
+    <div class="t">GASOLINA98</div>
+    <div class="s">Buscador de gasolineras baratas · datos oficiales</div>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <select id="g98prov"><option value="">Cargando provincias…</option></select>
+    <select id="g98muni"><option value="">Todos los municipios</option></select>
+    <select id="g98prod">
+      <option value="1" selected>Gasolina 95 E5</option>
+      <option value="3">Gasolina 98 E5</option>
+      <option value="20">Gasolina 95 Premium</option>
+      <option value="4">Gasóleo A</option>
+      <option value="5">Gasóleo Premium</option>
+      <option value="6">GLP</option>
+    </select>
+    <button id="g98btn">Buscar</button>
+    <button id="g98geo">📍 Ordenar por cercanía</button>
+    <div id="g98estado"></div>
+  </div>
+  <div id="g98resultados"></div>
+</main>
+
+<footer>
+  Precios: Ministerio para la Transición Ecológica · Actualización diaria<br>
+  Un servicio gratuito de <a href="https://www.gasolina98.es">Gasolina98.es</a>, tu blog de motor
+</footer>
+
+<script>
+(function(){
+var API='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/';
+var $=function(id){return document.getElementById(id);};
+var datos=[], miPos=null;
+
+var COLOR={'1':'#1e9e4a','20':'#0e6b32','3':'#c8102e','4':'#333333','5':'#1560bd','6':'#f39200'};
+function colorAct(){return COLOR[$('g98prod').value]||'#2e3160';}
+function num(s){return parseFloat(String(s).replace(',','.'));}
+function estado(t){$('g98estado').textContent=t;}
+
+$('g98prod').addEventListener('change',function(){this.style.borderColor=colorAct();});
+
+fetch(API+'Listados/Provincias/').then(function(r){return r.json();}).then(function(ps){
+  var sel=$('g98prov'); sel.innerHTML='<option value="">Elige provincia…</option>';
+  ps.forEach(function(p){
+    var o=document.createElement('option'); o.value=p.IDPovincia; o.textContent=p.Provincia; sel.appendChild(o);
+  });
+}).catch(function(){estado('Sin conexión: no se pudieron cargar las provincias.');});
+
+$('g98prov').addEventListener('change',function(){
+  var id=this.value, sel=$('g98muni');
+  sel.innerHTML='<option value="">Todos los municipios</option>';
+  if(!id) return;
+  fetch(API+'Listados/MunicipiosPorProvincia/'+id).then(function(r){return r.json();}).then(function(ms){
+    ms.forEach(function(m){
+      var o=document.createElement('option'); o.value=m.IDMunicipio; o.textContent=m.Municipio; sel.appendChild(o);
+    });
+  });
+});
+
+function distKm(lat1,lon1,lat2,lon2){
+  var R=6371,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function pintar(){
+  var cont=$('g98resultados'); cont.innerHTML='';
+  if(!datos.length){cont.innerHTML='<p>No hay resultados para esa búsqueda.</p>';return;}
+  var col=colorAct();
+  var nombreProd=$('g98prod').options[$('g98prod').selectedIndex].text;
+  var lista=datos.slice();
+  if(miPos){
+    lista.forEach(function(e){e._d=distKm(miPos.lat,miPos.lon,num(e.Latitud),num(e['Longitud (WGS84)']));});
+    lista.sort(function(a,b){return a._d-b._d;});
+  } else {
+    lista.sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
+  }
+  var min=Math.min.apply(null,lista.map(function(e){return num(e.PrecioProducto);}));
+  var head=document.createElement('div');
+  head.className='chip'; head.style.background=col; head.textContent=nombreProd;
+  cont.appendChild(head);
+  lista.slice(0,30).forEach(function(e){
+    var p=num(e.PrecioProducto);
+    var esMin=Math.abs(p-min)<0.0005;
+    var mapa='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
+    var div=document.createElement('div');
+    div.className='card';
+    div.style.borderLeft='6px solid '+col;
+    if(esMin){div.style.background='#f4faf6';div.style.boxShadow='0 0 0 2px '+col+'33';}
+    div.innerHTML='<div class="top"><strong>'+e['Rótulo']+'</strong>'
+      +'<span class="precio" style="color:'+col+';">'+e.PrecioProducto+' €/l'+(esMin?' 🏆':'')+'</span></div>'
+      +'<div class="dir">'+e['Dirección']+' · '+e.Localidad
+      +(e._d!==undefined?' · a '+e._d.toFixed(1)+' km':'')+'</div>'
+      +'<div class="hor">'+e.Horario+' · <a href="'+mapa+'" target="_blank" rel="noopener">Cómo llegar</a></div>';
+    cont.appendChild(div);
+  });
+  estado(datos.length+' gasolineras encontradas. Mostrando las '+Math.min(30,lista.length)+(miPos?' más cercanas.':' más baratas.'));
+}
+
+function buscar(){
+  var prov=$('g98prov').value, muni=$('g98muni').value, prod=$('g98prod').value;
+  if(!prov){estado('Elige una provincia primero.');return;}
+  estado('Buscando…');
+  var url=muni? API+'EstacionesTerrestres/FiltroMunicipioProducto/'+muni+'/'+prod
+              : API+'EstacionesTerrestres/FiltroProvinciaProducto/'+prov+'/'+prod;
+  fetch(url).then(function(r){return r.json();}).then(function(d){
+    datos=(d.ListaEESSPrecio||[]).filter(function(e){return num(e.PrecioProducto)>0;});
+    pintar();
+  }).catch(function(){estado('Error consultando los precios. Comprueba tu conexión.');});
+}
+
+$('g98btn').addEventListener('click',function(){miPos=null;buscar();});
+$('g98geo').addEventListener('click',function(){
+  if(!navigator.geolocation){estado('Tu dispositivo no permite geolocalización.');return;}
+  estado('Obteniendo tu ubicación…');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    miPos={lat:pos.coords.latitude,lon:pos.coords.longitude};
+    if(datos.length){pintar();}else{buscar();}
+  },function(){estado('No se pudo obtener la ubicación (revisa los permisos).');});
+});
+
+// Registro del service worker (la magia PWA)
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js');
+}
+})();
+</script>
+</body>
+</html>
