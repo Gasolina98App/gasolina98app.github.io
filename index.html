@@ -12,6 +12,18 @@
 <meta name="apple-mobile-web-app-title" content="Gasolina98">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" sizes="192x192" href="icon-192.png">
+<!-- OneSignal: notificaciones push -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "1b49101f-35b3-45f3-866a-b384e3b81b2d",
+      serviceWorkerPath: "sw.js",
+      serviceWorkerParam: { scope: "/" }
+    });
+  });
+</script>
 <!-- Google Analytics 4 -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-BYB1CNTNKN"></script>
 <script>

@@ -1,6 +1,8 @@
-// Service Worker de Gasolina98 App — v1
-// Cachea la "carcasa" de la app; los precios siempre van a la red.
-var CACHE = 'g98-app-v4';
+// Service Worker de Gasolina98 App
+// 1) Notificaciones push (OneSignal)  2) Caché de la "carcasa" de la app
+importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+
+var CACHE = 'g98-app-v5';
 var SHELL = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', function (e) {
