@@ -22,6 +22,21 @@
       serviceWorkerPath: "sw.js",
       serviceWorkerParam: { scope: "/" }
     });
+    // Botón campana: pide permiso al tocarlo y se oculta si ya está suscrito
+    var btn = document.getElementById('btn-push');
+    function refrescarCampana(){
+      if (OneSignal.User.PushSubscription.optedIn || Notification.permission === 'denied') {
+        btn.style.display = 'none';
+      } else {
+        btn.style.display = 'block';
+      }
+    }
+    refrescarCampana();
+    OneSignal.User.PushSubscription.addEventListener('change', refrescarCampana);
+    btn.addEventListener('click', function(){
+      OneSignal.Slidedown.promptPush({force:true});
+      if (typeof gtag === 'function') { gtag('event','click_campana_push'); }
+    });
   });
 </script>
 <!-- Google Analytics 4 -->
@@ -73,10 +88,12 @@
 <body>
 <header>
   <img src="icon-192.png" alt="Gasolina98">
-  <div>
+  <div style="flex:1;">
     <div class="t">GASOLINA98</div>
     <div class="s">Gasolineras baratas y blog de motor</div>
   </div>
+  <button id="btn-push" title="Activar avisos de nuevos artículos"
+    style="display:none;width:auto;background:none;border:1px solid rgba(232,228,216,.4);color:#e8e4d8;border-radius:8px;padding:8px 10px;font-size:18px;margin:0;cursor:pointer;">🔔</button>
 </header>
 
 <nav>
