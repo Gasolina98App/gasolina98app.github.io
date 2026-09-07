@@ -33,9 +33,14 @@
     }
     refrescarCampana();
     OneSignal.User.PushSubscription.addEventListener('change', refrescarCampana);
-    btn.addEventListener('click', function(){
-      OneSignal.Slidedown.promptPush({force:true});
+    btn.addEventListener('click', async function(){
       if (typeof gtag === 'function') { gtag('event','click_campana_push'); }
+      try {
+        await OneSignal.Notifications.requestPermission();
+      } catch(e) {
+        alert('No se pudo activar: revisa los permisos de notificaciones del navegador.');
+      }
+      refrescarCampana();
     });
   });
 </script>
