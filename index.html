@@ -57,6 +57,11 @@
         },
         {
           "@type": "Question",
+          "name": "¿Por qué no salen todas las gasolineras de mi ciudad?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Sí salen, pero de 30 en 30: la lista empieza por las más baratas de la provincia o municipio y con el botón 'Ver más' se carga el resto. En ciudades grandes como Madrid, Barcelona o Valencia lo más práctico es pulsar 'Ordenar por cercanía': la app usa la ubicación del dispositivo y muestra primero las gasolineras más cercanas, con su precio y la distancia." }
+        },
+        {
+          "@type": "Question",
           "name": "¿La app es gratis? ¿Hay que registrarse?",
           "acceptedAnswer": { "@type": "Answer", "text": "Sí, es gratis y no hace falta registrarse ni dar ningún dato. La ubicación solo se usa en tu dispositivo, cuando pulsas 'Ordenar por cercanía', para calcular la distancia a cada gasolinera." }
         },
@@ -140,6 +145,7 @@
   #g98btn{background:#2e3160;color:#fff;border:0;font-weight:bold;cursor:pointer;}
   #g98geo{background:#e8edf3;color:#333;border:1px solid #ccc;cursor:pointer;margin-bottom:0;}
   #g98estado{font-size:13px;color:#666;margin-top:8px;min-height:18px;}
+  #g98mas{background:#fff;color:#2e3160;border:2px solid #2e3160;font-weight:bold;cursor:pointer;margin:4px 0 14px;}
   .chip{display:inline-block;color:#fff;border-radius:6px;padding:6px 14px;font-weight:bold;font-size:13px;margin:0 0 12px;}
   .card{border:1px solid #e0e0e0;border-radius:10px;padding:12px;margin:0 0 10px;background:#fff;}
   .card .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -191,7 +197,7 @@
   <div id="vista-buscador">
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
-      <p class="intro">Elige provincia y carburante, o pulsa "Ordenar por cercanía". Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
+      <p class="intro">Elige provincia y carburante y verás primero las 30 más baratas; pulsa "Ver más" para seguir bajando. En ciudades grandes, usa "Ordenar por cercanía" para ver las de tu zona. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
       <select id="g98prov"><option value="">Cargando provincias…</option></select>
       <select id="g98muni"><option value="">Todos los municipios</option></select>
       <select id="g98prod">
@@ -212,6 +218,10 @@
       <details>
         <summary>¿De dónde salen los precios de las gasolineras?</summary>
         <p>De los datos oficiales del Ministerio para la Transición Ecológica. Todas las estaciones de servicio de España están obligadas a comunicar sus precios, y la app los consulta en tiempo real en cada búsqueda, así que ves la actualización diaria del Ministerio.</p>
+      </details>
+      <details>
+        <summary>¿Por qué no salen todas las gasolineras de mi ciudad?</summary>
+        <p>Sí salen, pero de 30 en 30: la lista empieza por las más baratas de la provincia o municipio y con el botón "Ver más" vas cargando el resto. En ciudades grandes como Madrid, Barcelona o Valencia lo más práctico es pulsar "Ordenar por cercanía": la app usa tu ubicación y te muestra primero las gasolineras que tienes más cerca, con su precio y la distancia.</p>
       </details>
       <details>
         <summary>¿La app es gratis? ¿Hay que registrarse?</summary>
@@ -315,25 +325,33 @@ function distKm(lat1,lon1,lat2,lon2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
+var PAGINA=30, listaOrd=[], mostrados=0, precioMin=0;
 function pintar(){
   var cont=$('g98resultados'); cont.innerHTML='';
   if(!datos.length){cont.innerHTML='<p>No hay resultados para esa búsqueda.</p>';return;}
   var col=colorAct();
   var nombreProd=$('g98prod').options[$('g98prod').selectedIndex].text;
-  var lista=datos.slice();
+  listaOrd=datos.slice();
   if(miPos){
-    lista.forEach(function(e){e._d=distKm(miPos.lat,miPos.lon,num(e.Latitud),num(e['Longitud (WGS84)']));});
-    lista.sort(function(a,b){return a._d-b._d;});
+    listaOrd.forEach(function(e){e._d=distKm(miPos.lat,miPos.lon,num(e.Latitud),num(e['Longitud (WGS84)']));});
+    listaOrd.sort(function(a,b){return a._d-b._d;});
   } else {
-    lista.sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
+    listaOrd.sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
   }
-  var min=Math.min.apply(null,lista.map(function(e){return num(e.PrecioProducto);}));
+  precioMin=Math.min.apply(null,listaOrd.map(function(e){return num(e.PrecioProducto);}));
   var head=document.createElement('div');
   head.className='chip'; head.style.background=col; head.textContent=nombreProd;
   cont.appendChild(head);
-  lista.slice(0,30).forEach(function(e){
+  mostrados=0;
+  pintarTramo();
+}
+
+function pintarTramo(){
+  var cont=$('g98resultados'), col=colorAct();
+  var viejo=$('g98mas'); if(viejo){viejo.parentNode.removeChild(viejo);}
+  listaOrd.slice(mostrados,mostrados+PAGINA).forEach(function(e){
     var p=num(e.PrecioProducto);
-    var esMin=Math.abs(p-min)<0.0005;
+    var esMin=Math.abs(p-precioMin)<0.0005;
     var mapa='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
     var div=document.createElement('div');
     div.className='card';
@@ -346,7 +364,19 @@ function pintar(){
       +'<div class="hor">'+e.Horario+' · <a href="'+mapa+'" target="_blank" rel="noopener">Cómo llegar</a></div>';
     cont.appendChild(div);
   });
-  estado(datos.length+' gasolineras encontradas. Mostrando las '+Math.min(30,lista.length)+(miPos?' más cercanas.':' más baratas.'));
+  mostrados=Math.min(mostrados+PAGINA,listaOrd.length);
+  var restantes=listaOrd.length-mostrados;
+  if(restantes>0){
+    var b=document.createElement('button');
+    b.id='g98mas';
+    b.textContent='Ver '+Math.min(PAGINA,restantes)+' más ('+restantes+' restantes)';
+    b.addEventListener('click',function(){
+      pintarTramo();
+      if(typeof gtag==='function'){gtag('event','ver_mas_gasolineras',{mostrados:mostrados});}
+    });
+    cont.appendChild(b);
+  }
+  estado(listaOrd.length+' gasolineras encontradas. Mostrando las '+mostrados+(miPos?' más cercanas.':' más baratas.'));
 }
 
 function buscar(){
