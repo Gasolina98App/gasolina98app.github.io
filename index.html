@@ -174,6 +174,11 @@
   .faq summary{font-weight:bold;font-size:14px;cursor:pointer;color:#2e3160;}
   .faq p{font-size:13px;color:#555;margin:8px 0 0;line-height:1.45;}
   .faq h2{font-size:15px;margin:0 0 6px;color:#222;}
+  /* Avisos: instalar app / activar notificaciones */
+  .hint{background:#eef4ff;border:1px solid #cfe0fb;border-radius:10px;padding:12px;margin:0 0 14px;font-size:14px;color:#1c2b4a;line-height:1.4;}
+  .hint .hint-actions{display:flex;gap:8px;margin-top:10px;}
+  .hint .hint-actions button{width:auto;flex:1;padding:9px 0;margin:0;font-size:13px;border-radius:8px;border:0;cursor:pointer;background:#2e3160;color:#fff;font-weight:bold;}
+  .hint .hint-actions button.ghost{background:#fff;border:1px solid #cfe0fb;color:#2e3160;}
 </style>
 </head>
 <body>
@@ -195,6 +200,13 @@
 <main>
   <!-- VISTA BUSCADOR -->
   <div id="vista-buscador">
+    <div id="g98install" class="hint hidden">
+      <span id="g98install-text"></span>
+      <div class="hint-actions">
+        <button id="g98install-yes">Instalar</button>
+        <button id="g98install-no" class="ghost">Ahora no</button>
+      </div>
+    </div>
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Elige provincia y carburante y verás primero las 30 más baratas; pulsa "Ver más" para seguir bajando. En ciudades grandes, usa "Ordenar por cercanía" para ver las de tu zona. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
@@ -254,6 +266,85 @@
 var API='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/';
 var $=function(id){return document.getElementById(id);};
 var datos=[], miPos=null, blogCargado=false;
+
+/* ---------- Instalar app (botón proactivo) ---------- */
+var LS_INSTALL_DISMISS='g98_install_dismissed_at', LS_PUSH_DISMISS='g98_push_dismissed_at', DIAS_COOLDOWN=14;
+var deferredInstallPrompt=null;
+function haceMenosDeNDias(ts,n){ return !!ts && (Date.now()-Number(ts))<n*24*60*60*1000; }
+function esStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true; }
+function esIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function actualizarBannerInstall(){
+  var el=$('g98install');
+  if(esStandalone() || haceMenosDeNDias(localStorage.getItem(LS_INSTALL_DISMISS),DIAS_COOLDOWN)){
+    el.classList.add('hidden'); return;
+  }
+  if(deferredInstallPrompt){
+    $('g98install-text').textContent='📲 Instala Gasolina98 en tu móvil: acceso directo y avisos de precios.';
+    $('g98install-yes').classList.remove('hidden');
+    el.classList.remove('hidden');
+  } else if(esIOS()){
+    $('g98install-text').textContent='📲 Instala Gasolina98: toca Compartir ⬆️ y elige "Añadir a pantalla de inicio".';
+    $('g98install-yes').classList.add('hidden');
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+window.addEventListener('beforeinstallprompt',function(e){
+  e.preventDefault();
+  deferredInstallPrompt=e;
+  actualizarBannerInstall();
+});
+$('g98install-yes').addEventListener('click',function(){
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(function(choice){
+    if(typeof gtag==='function'){gtag('event','install_prompt_resultado',{resultado:choice.outcome});}
+    deferredInstallPrompt=null;
+    actualizarBannerInstall();
+  });
+});
+$('g98install-no').addEventListener('click',function(){
+  localStorage.setItem(LS_INSTALL_DISMISS,String(Date.now()));
+  $('g98install').classList.add('hidden');
+  if(typeof gtag==='function'){gtag('event','install_banner_descartado');}
+});
+actualizarBannerInstall();
+
+/* ---------- Aviso contextual de notificaciones push ---------- */
+var pushHintMostrado=false;
+function debeOfrecerPush(){
+  if(pushHintMostrado || typeof Notification==='undefined') return false;
+  if(Notification.permission==='granted' || Notification.permission==='denied') return false;
+  if(haceMenosDeNDias(localStorage.getItem(LS_PUSH_DISMISS),DIAS_COOLDOWN)) return false;
+  return true;
+}
+function ofrecerPushTrasResultados(cont){
+  if(!debeOfrecerPush()) return;
+  pushHintMostrado=true;
+  var div=document.createElement('div');
+  div.className='hint'; div.id='g98pushhint';
+  div.innerHTML='🔔 ¿Te avisamos si baja el precio en tu zona?'
+    +'<div class="hint-actions">'
+    +'<button id="g98push-yes">Sí, avisarme</button>'
+    +'<button id="g98push-no" class="ghost">Ahora no</button>'
+    +'</div>';
+  cont.insertBefore(div, cont.firstChild.nextSibling);
+  if(typeof gtag==='function'){gtag('event','push_contextual_mostrado');}
+  $('g98push-yes').addEventListener('click',function(){
+    if(typeof gtag==='function'){gtag('event','push_contextual_aceptado');}
+    window.OneSignalDeferred=window.OneSignalDeferred||[];
+    OneSignalDeferred.push(async function(OneSignal){
+      try{ await OneSignal.Notifications.requestPermission(); }catch(e){}
+    });
+    div.remove();
+  });
+  $('g98push-no').addEventListener('click',function(){
+    localStorage.setItem(LS_PUSH_DISMISS,String(Date.now()));
+    if(typeof gtag==='function'){gtag('event','push_contextual_descartado');}
+    div.remove();
+  });
+}
 
 /* ---------- Pestañas ---------- */
 function tab(cual){
@@ -342,6 +433,7 @@ function pintar(){
   var head=document.createElement('div');
   head.className='chip'; head.style.background=col; head.textContent=nombreProd;
   cont.appendChild(head);
+  ofrecerPushTrasResultados(cont);
   mostrados=0;
   pintarTramo();
 }
@@ -418,6 +510,8 @@ if('serviceWorker' in navigator){
 // Instalación de la PWA (Android/Chrome dispara 'appinstalled')
 window.addEventListener('appinstalled',function(){
   if(typeof gtag==='function'){gtag('event','pwa_instalada');}
+  deferredInstallPrompt=null;
+  actualizarBannerInstall();
 });
 // Apertura en modo app (cuenta también iOS, que no dispara 'appinstalled')
 if(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true){
