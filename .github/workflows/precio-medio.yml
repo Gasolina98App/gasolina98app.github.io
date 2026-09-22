@@ -1,0 +1,31 @@
+Read 1 file
+
+name: Actualizar precio medio nacional
+
+on:
+  schedule:
+    # 06:30 UTC ~= 08:30 CET/CEST, después de la actualización diaria de MITECO
+    - cron: '30 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Calcular y escribir el precio medio de hoy
+        run: node scripts/actualizar-precio-medio.js
+
+      - name: Commit y push si hay cambios
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: precio medio nacional del dia'
+          file_pattern: 'index.html sw.js sitemap.xml precio-medio.json'
