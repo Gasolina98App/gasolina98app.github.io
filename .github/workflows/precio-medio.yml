@@ -22,8 +22,11 @@ jobs:
       - name: Calcular y escribir el precio medio de hoy
         run: node scripts/actualizar-precio-medio.js
 
+      - name: Generar listado nacional de estaciones para el mapa
+        run: node scripts/generar-estaciones.js
+
       - name: Commit y push si hay cambios
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'chore: precio medio nacional del dia'
-          file_pattern: 'index.html sw.js sitemap.xml precio-medio.json'
+          commit_message: 'chore: precio medio nacional y estaciones del dia'
+          file_pattern: 'index.html sw.js sitemap.xml precio-medio.json estaciones.json'
