@@ -87,6 +87,21 @@
 <meta name="apple-mobile-web-app-title" content="Gasolina98">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" sizes="192x192" href="icon-192.png">
+<!-- Google Consent Mode: por defecto se deniega el uso de cookies de anuncios/analítica hasta que el usuario decida -->
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('consent', 'default', {
+    'ad_storage': 'denied',
+    'ad_user_data': 'denied',
+    'ad_personalization': 'denied',
+    'analytics_storage': 'denied',
+    'wait_for_update': 500
+  });
+</script>
+<!-- Google Funding Choices (CMP): pide consentimiento en la UE/Reino Unido/Suiza antes de personalizar anuncios o guardar cookies -->
+<script async src="https://fundingchoicesmessages.google.com/i/pub-5561147546413268?ers=1"></script>
+<script>(function() {function signalGooglefcPresent() {if (!window.frames['googlefcPresent']) {if (document.body) {const iframe = document.createElement('iframe'); iframe.style = 'width: 0; height: 0; border: none; z-index: -1000; left: -1000px; top: -1000px;'; iframe.style.display = 'none'; iframe.name = 'googlefcPresent'; document.body.appendChild(iframe);} else {setTimeout(signalGooglefcPresent, 0);}}}signalGooglefcPresent();})();</script>
 <!-- Google AdSense: Auto ads -->
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5561147546413268" crossorigin="anonymous"></script>
 <!-- OneSignal: notificaciones push -->
@@ -251,14 +266,22 @@
     </div>
     <footer>
       Precios: Ministerio para la Transición Ecológica · Actualización diaria<br>
-      Un servicio gratuito de <a href="https://www.gasolina98.es">Gasolina98.es</a>
+      Un servicio gratuito de <a href="https://www.gasolina98.es">Gasolina98.es</a><br>
+      <a href="https://www.gasolina98.es/p/aviso-legal.html">Aviso legal</a> ·
+      <a href="https://www.gasolina98.es/p/politica-de-privacidad.html">Política de privacidad</a> ·
+      <a href="https://www.gasolina98.es/p/politica-de-cookies.html">Política de cookies</a>
     </footer>
   </div>
 
   <!-- VISTA BLOG -->
   <div id="vista-blog" class="hidden">
     <div id="blogposts"><p style="color:#888;">Cargando las últimas entradas…</p></div>
-    <footer><a id="link-blog-completo" href="https://www.gasolina98.es">Ver el blog completo →</a></footer>
+    <footer>
+      <a id="link-blog-completo" href="https://www.gasolina98.es">Ver el blog completo →</a><br>
+      <a href="https://www.gasolina98.es/p/aviso-legal.html">Aviso legal</a> ·
+      <a href="https://www.gasolina98.es/p/politica-de-privacidad.html">Política de privacidad</a> ·
+      <a href="https://www.gasolina98.es/p/politica-de-cookies.html">Política de cookies</a>
+    </footer>
   </div>
 </main>
 
