@@ -196,6 +196,14 @@
   .hint .hint-actions{display:flex;gap:8px;margin-top:10px;}
   .hint .hint-actions button{width:auto;flex:1;padding:9px 0;margin:0;font-size:13px;border-radius:8px;border:0;cursor:pointer;background:#2e3160;color:#fff;font-weight:bold;}
   .hint .hint-actions button.ghost{background:#fff;border:1px solid #cfe0fb;color:#2e3160;}
+  /* Insignias de marca en el mapa */
+  .leaflet-div-icon{background:transparent;border:0;}
+  .g98-badge{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    color:#fff;font:bold 11px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    border-style:solid;border-width:4px;box-shadow:0 1px 4px rgba(0,0,0,.45);}
+  #g98leyenda{font-size:12px;color:#666;margin-top:8px;}
+  #g98leyenda span{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px 0 10px;vertical-align:middle;}
+  #g98leyenda span:first-child{margin-left:0;}
 </style>
 </head>
 <body>
@@ -227,7 +235,7 @@
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
-      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,932 €/l</strong> · Gasóleo A <strong>1,931 €/l</strong><!--PRECIO-MEDIO-END--></p>
+      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -240,6 +248,7 @@
     <div class="panel">
       <div id="g98mapa" style="height:340px;border-radius:10px;overflow:hidden;background:#e8edf3;"></div>
       <div id="g98mapaestado" style="font-size:13px;color:#666;margin-top:8px;min-height:18px;"></div>
+      <div id="g98leyenda"><span style="background:#1e9e4a;"></span>Más barata cerca<span style="background:#f2b400;"></span>Precio medio<span style="background:#e2001a;"></span>Más cara cerca</div>
     </div>
     <div id="g98resultados"></div>
     <div class="panel">
@@ -478,6 +487,41 @@ function reconstruirDesdeEstaciones(){
   pintar();
 }
 
+var MARCAS=[
+  {k:'REPSOL',ini:'R',color:'#e2001a'},
+  {k:'CEPSA',ini:'C',color:'#00205b'},
+  {k:'SHELL',ini:'S',color:'#a37e00'},
+  {k:'BP',ini:'BP',color:'#4c8c2b'},
+  {k:'GALP',ini:'G',color:'#d2691e'},
+  {k:'PETRONOR',ini:'P',color:'#004b87'},
+  {k:'AVIA',ini:'A',color:'#003da5'},
+  {k:'DISA',ini:'D',color:'#00873e'},
+  {k:'MEROIL',ini:'M',color:'#c96f00'},
+  {k:'BALLENOIL',ini:'B',color:'#1b3358'},
+  {k:'PLENOIL',ini:'PL',color:'#5c8a1f'},
+  {k:'CARREFOUR',ini:'CA',color:'#0066b3'},
+  {k:'ALCAMPO',ini:'AL',color:'#b3001b'},
+  {k:'LECLERC',ini:'LE',color:'#0055a4'},
+  {k:'EROSKI',ini:'ER',color:'#b3005c'},
+  {k:'Q8',ini:'Q8',color:'#8a6d00'},
+  {k:'MAKRO',ini:'MK',color:'#c96f00'},
+  {k:'PETROPRIX',ini:'PX',color:'#5c8a1f'}
+];
+function marcaDeRotulo(rotulo){
+  var t=(rotulo||'').toUpperCase();
+  for(var i=0;i<MARCAS.length;i++){
+    if(t.indexOf(MARCAS[i].k)!==-1) return MARCAS[i];
+  }
+  return {k:'',ini:'⛽',color:'#6b7280'};
+}
+function badgeIcon(marca,anillo){
+  return L.divIcon({
+    className:'',
+    html:'<div class="g98-badge" style="background:'+marca.color+';border-color:'+anillo+';">'+marca.ini+'</div>',
+    iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-15]
+  });
+}
+
 function asegurarMapa(lat,lon){
   if(!mapaLeaflet){
     mapaLeaflet=L.map('g98mapa').setView([lat,lon],13);
@@ -501,11 +545,16 @@ function pintarMapa(){
   var col=colorAct();
   var cercanas=listaOrd.slice(0,40);
   var minP=Math.min.apply(null,cercanas.map(function(e){return num(e.PrecioProducto);}));
+  var anillos=['#1e9e4a','#f2b400','#e2001a'];
+  var porPrecio=cercanas.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
   cercanas.forEach(function(e){
     var esMin=Math.abs(num(e.PrecioProducto)-minP)<0.0005;
     var mapaUrl='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
-    var m=L.circleMarker([num(e.Latitud),num(e['Longitud (WGS84)'])],{
-      radius: esMin?11:7, color:'#fff', weight:esMin?3:2, fillColor:col, fillOpacity:.9
+    var pos=porPrecio.indexOf(e);
+    var tercio=Math.min(2,Math.floor(pos*3/porPrecio.length));
+    var marca=marcaDeRotulo(e['Rótulo']);
+    var m=L.marker([num(e.Latitud),num(e['Longitud (WGS84)'])],{
+      icon: badgeIcon(marca,anillos[tercio])
     }).addTo(capaMarcadores);
     m.bindPopup(
       '<strong>'+e['Rótulo']+'</strong><br>'
