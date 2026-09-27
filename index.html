@@ -198,9 +198,11 @@
   .hint .hint-actions button.ghost{background:#fff;border:1px solid #cfe0fb;color:#2e3160;}
   /* Insignias de marca en el mapa */
   .leaflet-div-icon{background:transparent;border:0;}
-  .g98-badge{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    color:#fff;font:bold 11px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    border-style:solid;border-width:4px;box-shadow:0 1px 4px rgba(0,0,0,.45);}
+  .g98-pin{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 1px 4px rgba(0,0,0,.45);}
+  .g98-badge{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    color:#fff;font:bold 10px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    border:3px solid #fff;}
   #g98leyenda{font-size:12px;color:#666;margin-top:8px;}
   #g98leyenda span{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px 0 10px;vertical-align:middle;}
   #g98leyenda span:first-child{margin-left:0;}
@@ -235,7 +237,7 @@
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
-      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,932 €/l</strong> · Gasóleo A <strong>1,931 €/l</strong><!--PRECIO-MEDIO-END--></p>
+      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -501,11 +503,12 @@ function reconstruirDesdeEstaciones(){
 }
 
 var MARCAS=[
-  {k:'REPSOL',ini:'R',color:'#1e3a8a'},
+  {k:'REPSOL',ini:'R',color:'#b8860b'},
+  {k:'MOEVE',ini:'MV',color:'#0284c7'},
   {k:'CEPSA',ini:'C',color:'#4c1d95'},
   {k:'SHELL',ini:'S',color:'#374151'},
-  {k:'BP',ini:'BP',color:'#0c4a6e'},
-  {k:'GALP',ini:'G',color:'#7c2d92'},
+  {k:'BP',ini:'BP',color:'#0b6e4f'},
+  {k:'GALP',ini:'G',color:'#e8590c'},
   {k:'PETRONOR',ini:'P',color:'#1e40af'},
   {k:'AVIA',ini:'A',color:'#3730a3'},
   {k:'DISA',ini:'D',color:'#155e75'},
@@ -530,8 +533,8 @@ function marcaDeRotulo(rotulo){
 function badgeIcon(marca,anillo){
   return L.divIcon({
     className:'',
-    html:'<div class="g98-badge" style="background:'+marca.color+';border-color:'+anillo+';">'+marca.ini+'</div>',
-    iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-15]
+    html:'<div class="g98-pin" style="background:'+anillo+';"><div class="g98-badge" style="background:'+marca.color+';">'+marca.ini+'</div></div>',
+    iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-17]
   });
 }
 
