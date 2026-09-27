@@ -246,6 +246,13 @@
       </select>
     </div>
     <div class="panel">
+      <select id="g98radio">
+        <option value="5">A menos de 5 km</option>
+        <option value="10" selected>A menos de 10 km</option>
+        <option value="25">A menos de 25 km</option>
+        <option value="50">A menos de 50 km</option>
+        <option value="100">A menos de 100 km</option>
+      </select>
       <div id="g98mapa" style="height:340px;border-radius:10px;overflow:hidden;background:#e8edf3;"></div>
       <div id="g98mapaestado" style="font-size:13px;color:#666;margin-top:8px;min-height:18px;"></div>
       <div id="g98leyenda"><span style="background:#1e9e4a;"></span>Más barata cerca<span style="background:#f2b400;"></span>Precio medio<span style="background:#e2001a;"></span>Más cara cerca</div>
@@ -440,6 +447,9 @@ $('g98prod').addEventListener('change',function(){
   this.style.borderColor=colorAct();
   if(miPos && estacionesNac){reconstruirDesdeEstaciones();}
 });
+$('g98radio').addEventListener('change',function(){
+  if(miPos && estacionesNac){reconstruirDesdeEstaciones();}
+});
 
 fetch(API+'Listados/Provincias/').then(function(r){return r.json();}).then(function(ps){
   var sel=$('g98prov'); sel.innerHTML='<option value="">Elige provincia…</option>';
@@ -483,7 +493,10 @@ function aDato(e,prod){
 function reconstruirDesdeEstaciones(){
   if(!estacionesNac || !miPos) return;
   var prod=$('g98prod').value;
-  datos=estacionesNac.map(function(e){return aDato(e,prod);}).filter(Boolean);
+  var radioKm=num($('g98radio').value);
+  datos=estacionesNac.map(function(e){return aDato(e,prod);}).filter(Boolean).filter(function(e){
+    return distKm(miPos.lat,miPos.lon,num(e.Latitud),num(e['Longitud (WGS84)']))<=radioKm;
+  });
   pintar();
 }
 
@@ -607,7 +620,7 @@ function iniciarMapa(){
 var PAGINA=30, listaOrd=[], mostrados=0, precioMin=0;
 function pintar(){
   var cont=$('g98resultados'); cont.innerHTML='';
-  if(!datos.length){cont.innerHTML='<p>No hay resultados para esa búsqueda.</p>';listaOrd=[];pintarMapa();return;}
+  if(!datos.length){cont.innerHTML='<p>'+(miPos?'No hay gasolineras en ese radio. Prueba a ampliar la distancia.':'No hay resultados para esa búsqueda.')+'</p>';listaOrd=[];pintarMapa();return;}
   var col=colorAct();
   var nombreProd=$('g98prod').options[$('g98prod').selectedIndex].text;
   listaOrd=datos.slice();
