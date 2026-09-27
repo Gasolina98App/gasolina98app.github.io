@@ -31,7 +31,7 @@
       "name": "Gasolina98 App",
       "alternateName": "Buscador de gasolineras baratas Gasolina98",
       "url": "https://app.gasolina98.es/",
-      "description": "Buscador de gasolineras baratas en España con precios oficiales del Ministerio para la Transición Ecológica, actualizados a diario. Muestra el precio medio nacional del día nada más abrir la app, y permite filtrar por provincia, municipio y carburante, u ordenar por cercanía.",
+      "description": "Buscador de gasolineras baratas en España con precios oficiales del Ministerio para la Transición Ecológica, actualizados a diario. Al abrir la app muestra un mapa con las gasolineras de tu zona y su precio, y también permite buscar manualmente por provincia, municipio y carburante.",
       "applicationCategory": "UtilitiesApplication",
       "operatingSystem": "Any",
       "browserRequirements": "Requiere JavaScript",
@@ -58,12 +58,12 @@
         {
           "@type": "Question",
           "name": "¿Por qué no salen todas las gasolineras de mi ciudad?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Sí salen, pero de 30 en 30: la lista empieza por las más baratas de la provincia o municipio y con el botón 'Ver más' se carga el resto. En ciudades grandes como Madrid, Barcelona o Valencia lo más práctico es pulsar 'Ordenar por cercanía': la app usa la ubicación del dispositivo y muestra primero las gasolineras más cercanas, con su precio y la distancia." }
+          "acceptedAnswer": { "@type": "Answer", "text": "En el mapa se muestran las gasolineras más cercanas a tu ubicación, y debajo tienes la lista completa ordenada por cercanía, de 30 en 30 (con el botón 'Ver más' se carga el resto). Si prefieres buscar en otra zona, puedes hacerlo manualmente por provincia o municipio." }
         },
         {
           "@type": "Question",
           "name": "¿La app es gratis? ¿Hay que registrarse?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Sí, es gratis y no hace falta registrarse ni dar ningún dato. La ubicación solo se usa en tu dispositivo, cuando pulsas 'Ordenar por cercanía', para calcular la distancia a cada gasolinera." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Sí, es gratis y no hace falta registrarse ni dar ningún dato. La ubicación solo se usa en tu dispositivo, para mostrarte en el mapa las gasolineras que tienes alrededor y calcular la distancia a cada una." }
         },
         {
           "@type": "Question",
@@ -80,6 +80,8 @@
   ]
 }
 </script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2e3160">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -224,10 +226,8 @@
     </div>
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
-      <p class="intro">Elige provincia y carburante y verás primero las 30 más baratas; pulsa "Ver más" para seguir bajando. En ciudades grandes, usa "Ordenar por cercanía" para ver las de tu zona. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
+      <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
       <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
-      <select id="g98prov"><option value="">Cargando provincias…</option></select>
-      <select id="g98muni"><option value="">Todos los municipios</option></select>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -236,11 +236,24 @@
         <option value="5">Gasóleo Premium</option>
         <option value="6">GLP</option>
       </select>
-      <button id="g98btn">Buscar</button>
-      <button id="g98geo">📍 Ordenar por cercanía</button>
-      <div id="g98estado"></div>
+    </div>
+    <div class="panel">
+      <div id="g98mapa" style="height:340px;border-radius:10px;overflow:hidden;background:#e8edf3;"></div>
+      <div id="g98mapaestado" style="font-size:13px;color:#666;margin-top:8px;min-height:18px;"></div>
     </div>
     <div id="g98resultados"></div>
+    <div class="panel">
+      <details id="g98manual">
+        <summary style="font-weight:bold;color:#2e3160;cursor:pointer;">📍 Buscar por provincia o municipio en su lugar</summary>
+        <div style="margin-top:12px;">
+          <select id="g98prov"><option value="">Cargando provincias…</option></select>
+          <select id="g98muni"><option value="">Todos los municipios</option></select>
+          <button id="g98btn">Buscar</button>
+          <button id="g98geo">📍 Ordenar por cercanía</button>
+          <div id="g98estado"></div>
+        </div>
+      </details>
+    </div>
     <div class="panel faq">
       <h2>Preguntas frecuentes</h2>
       <details>
@@ -249,11 +262,11 @@
       </details>
       <details>
         <summary>¿Por qué no salen todas las gasolineras de mi ciudad?</summary>
-        <p>Sí salen, pero de 30 en 30: la lista empieza por las más baratas de la provincia o municipio y con el botón "Ver más" vas cargando el resto. En ciudades grandes como Madrid, Barcelona o Valencia lo más práctico es pulsar "Ordenar por cercanía": la app usa tu ubicación y te muestra primero las gasolineras que tienes más cerca, con su precio y la distancia.</p>
+        <p>En el mapa se muestran las gasolineras más cercanas a tu ubicación, y debajo tienes la lista completa ordenada por cercanía, de 30 en 30 (con el botón "Ver más" vas cargando el resto). Si prefieres buscar en otra zona, puedes hacerlo manualmente por provincia o municipio.</p>
       </details>
       <details>
         <summary>¿La app es gratis? ¿Hay que registrarse?</summary>
-        <p>Sí, es gratis y no hace falta registrarse ni dar ningún dato. La ubicación solo se usa en tu dispositivo, cuando pulsas "Ordenar por cercanía", para calcular la distancia a cada gasolinera.</p>
+        <p>Sí, es gratis y no hace falta registrarse ni dar ningún dato. La ubicación solo se usa en tu dispositivo, para mostrarte en el mapa las gasolineras que tienes alrededor y calcular la distancia a cada una.</p>
       </details>
       <details>
         <summary>¿Cómo instalo Gasolina98 en el móvil?</summary>
@@ -289,7 +302,7 @@
 (function(){
 var API='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/';
 var $=function(id){return document.getElementById(id);};
-var datos=[], miPos=null, blogCargado=false;
+var datos=[], miPos=null, blogCargado=false, estacionesNac=null, mapaLeaflet=null, capaMarcadores=null, marcadorYo=null;
 
 /* ---------- Instalar app (botón proactivo) ---------- */
 var LS_INSTALL_DISMISS='g98_install_dismissed_at', LS_PUSH_DISMISS='g98_push_dismissed_at', DIAS_COOLDOWN=14;
@@ -414,7 +427,10 @@ function colorAct(){return COLOR[$('g98prod').value]||'#2e3160';}
 function num(s){return parseFloat(String(s).replace(',','.'));}
 function estado(t){$('g98estado').textContent=t;}
 
-$('g98prod').addEventListener('change',function(){this.style.borderColor=colorAct();});
+$('g98prod').addEventListener('change',function(){
+  this.style.borderColor=colorAct();
+  if(miPos && estacionesNac){reconstruirDesdeEstaciones();}
+});
 
 fetch(API+'Listados/Provincias/').then(function(r){return r.json();}).then(function(ps){
   var sel=$('g98prov'); sel.innerHTML='<option value="">Elige provincia…</option>';
@@ -440,10 +456,109 @@ function distKm(lat1,lon1,lat2,lon2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
+/* ---------- Mapa de gasolineras cercanas (estaciones.json, generado a diario) ---------- */
+function aDato(e,prod){
+  var p=e['p'+prod];
+  if(!p) return null;
+  return {
+    'Rótulo': e.r,
+    'Dirección': e.d,
+    Localidad: e.l,
+    Horario: e.h,
+    Latitud: String(e.x),
+    'Longitud (WGS84)': String(e.y),
+    PrecioProducto: p.toFixed(3).replace('.', ',')
+  };
+}
+
+function reconstruirDesdeEstaciones(){
+  if(!estacionesNac || !miPos) return;
+  var prod=$('g98prod').value;
+  datos=estacionesNac.map(function(e){return aDato(e,prod);}).filter(Boolean);
+  pintar();
+}
+
+function asegurarMapa(lat,lon){
+  if(!mapaLeaflet){
+    mapaLeaflet=L.map('g98mapa').setView([lat,lon],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19, attribution:'&copy; OpenStreetMap'
+    }).addTo(mapaLeaflet);
+    capaMarcadores=L.layerGroup().addTo(mapaLeaflet);
+  } else {
+    mapaLeaflet.setView([lat,lon],13);
+  }
+}
+
+function pintarMapa(){
+  if(!miPos) return;
+  asegurarMapa(miPos.lat,miPos.lon);
+  capaMarcadores.clearLayers();
+  if(marcadorYo){marcadorYo.remove();}
+  marcadorYo=L.circleMarker([miPos.lat,miPos.lon],{radius:8,color:'#fff',weight:3,fillColor:'#2e3160',fillOpacity:1})
+    .addTo(mapaLeaflet).bindPopup('Estás aquí');
+  if(!listaOrd.length) return;
+  var col=colorAct();
+  var cercanas=listaOrd.slice(0,40);
+  var minP=Math.min.apply(null,cercanas.map(function(e){return num(e.PrecioProducto);}));
+  cercanas.forEach(function(e){
+    var esMin=Math.abs(num(e.PrecioProducto)-minP)<0.0005;
+    var mapaUrl='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
+    var m=L.circleMarker([num(e.Latitud),num(e['Longitud (WGS84)'])],{
+      radius: esMin?11:7, color:'#fff', weight:esMin?3:2, fillColor:col, fillOpacity:.9
+    }).addTo(capaMarcadores);
+    m.bindPopup(
+      '<strong>'+e['Rótulo']+'</strong><br>'
+      +'<span style="color:'+col+';font-weight:bold;">'+e.PrecioProducto+' €/l'+(esMin?' 🏆':'')+'</span><br>'
+      +e['Dirección']+' · '+e.Localidad+'<br>'
+      +e.Horario+' · <a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>'
+    );
+    m.on('popupopen',function(){
+      if(typeof gtag==='function'){gtag('event','mapa_marcador_click',{rotulo:e['Rótulo']});}
+    });
+  });
+  if(typeof gtag==='function'){
+    gtag('event','mapa_cargado',{
+      carburante: $('g98prod').options[$('g98prod').selectedIndex].text,
+      estaciones_mostradas: cercanas.length
+    });
+  }
+}
+
+function pedirUbicacion(){
+  if(!navigator.geolocation){
+    $('g98mapaestado').textContent='Tu dispositivo no permite geolocalización. Usa la búsqueda manual de abajo.';
+    $('g98manual').setAttribute('open','');
+    return;
+  }
+  $('g98mapaestado').textContent='Obteniendo tu ubicación…';
+  navigator.geolocation.getCurrentPosition(function(pos){
+    miPos={lat:pos.coords.latitude,lon:pos.coords.longitude};
+    $('g98mapaestado').textContent='';
+    reconstruirDesdeEstaciones();
+  },function(){
+    $('g98mapaestado').innerHTML='No se pudo obtener tu ubicación (revisa los permisos). '
+      +'<button id="g98reintentar" style="width:auto;display:inline;padding:4px 10px;margin:0;">Reintentar</button>';
+    $('g98manual').setAttribute('open','');
+    document.getElementById('g98reintentar').addEventListener('click',pedirUbicacion);
+  });
+}
+
+function iniciarMapa(){
+  $('g98mapaestado').textContent='Cargando estaciones…';
+  fetch('estaciones.json').then(function(r){return r.json();}).then(function(d){
+    estacionesNac=d.estaciones||[];
+    pedirUbicacion();
+  }).catch(function(){
+    $('g98mapaestado').textContent='No se pudo cargar el listado de estaciones. Comprueba tu conexión.';
+    $('g98manual').setAttribute('open','');
+  });
+}
+
 var PAGINA=30, listaOrd=[], mostrados=0, precioMin=0;
 function pintar(){
   var cont=$('g98resultados'); cont.innerHTML='';
-  if(!datos.length){cont.innerHTML='<p>No hay resultados para esa búsqueda.</p>';return;}
+  if(!datos.length){cont.innerHTML='<p>No hay resultados para esa búsqueda.</p>';listaOrd=[];pintarMapa();return;}
   var col=colorAct();
   var nombreProd=$('g98prod').options[$('g98prod').selectedIndex].text;
   listaOrd=datos.slice();
@@ -460,6 +575,7 @@ function pintar(){
   ofrecerPushTrasResultados(cont);
   mostrados=0;
   pintarTramo();
+  pintarMapa();
 }
 
 function pintarTramo(){
@@ -529,6 +645,9 @@ $('g98geo').addEventListener('click',function(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js');
 }
+
+// Mapa de gasolineras cercanas: es lo primero que se intenta al abrir la app
+iniciarMapa();
 
 /* ---------- Eventos GA4 ---------- */
 // Instalación de la PWA (Android/Chrome dispara 'appinstalled')
