@@ -198,6 +198,11 @@
   .hint .hint-actions button.ghost{background:#fff;border:1px solid #cfe0fb;color:#2e3160;}
   /* Insignias de marca en el mapa */
   .leaflet-div-icon{background:transparent;border:0;}
+  .g98-yo{position:relative;width:44px;height:44px;}
+  .g98-yo-halo{position:absolute;inset:0;border-radius:50%;background:rgba(66,133,244,.25);animation:g98pulso 2s ease-out infinite;}
+  .g98-yo-punto{position:absolute;left:13px;top:13px;width:18px;height:18px;border-radius:50%;background:#4285f4;
+    border:3px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.4);}
+  @keyframes g98pulso{0%{transform:scale(.5);opacity:1;}100%{transform:scale(1);opacity:0;}}
   .g98-pin{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
     box-shadow:0 1px 4px rgba(0,0,0,.45);}
   .g98-badge{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -237,7 +242,7 @@
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
-      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (28/09/2026): Gasolina 95 <strong>1,934 €/l</strong> · Gasóleo A <strong>1,931 €/l</strong><!--PRECIO-MEDIO-END--></p>
+      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -538,28 +543,38 @@ function badgeIcon(marca,anillo){
   });
 }
 
-function asegurarMapa(lat,lon){
+var circuloRadio=null, MAX_MARCADORES=200;
+function asegurarMapa(lat,lon,radioKm){
   if(!mapaLeaflet){
     mapaLeaflet=L.map('g98mapa').setView([lat,lon],13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       maxZoom:19, attribution:'&copy; OpenStreetMap'
     }).addTo(mapaLeaflet);
     capaMarcadores=L.layerGroup().addTo(mapaLeaflet);
-  } else {
-    mapaLeaflet.setView([lat,lon],13);
   }
+  // Círculo del radio elegido y zoom ajustado a él
+  if(circuloRadio){circuloRadio.remove();}
+  circuloRadio=L.circle([lat,lon],{radius:radioKm*1000,color:'#2e3160',weight:1,fillOpacity:0.04,interactive:false}).addTo(mapaLeaflet);
+  mapaLeaflet.fitBounds(circuloRadio.getBounds(),{padding:[10,10]});
 }
 
 function pintarMapa(){
   if(!miPos) return;
-  asegurarMapa(miPos.lat,miPos.lon);
+  asegurarMapa(miPos.lat,miPos.lon,num($('g98radio').value));
   capaMarcadores.clearLayers();
   if(marcadorYo){marcadorYo.remove();}
-  marcadorYo=L.circleMarker([miPos.lat,miPos.lon],{radius:8,color:'#fff',weight:3,fillColor:'#2e3160',fillOpacity:1})
-    .addTo(mapaLeaflet).bindPopup('Estás aquí');
+  marcadorYo=L.marker([miPos.lat,miPos.lon],{
+    icon:L.divIcon({className:'',html:'<div class="g98-yo"><div class="g98-yo-halo"></div><div class="g98-yo-punto"></div></div>',
+      iconSize:[44,44],iconAnchor:[22,22],popupAnchor:[0,-12]}),
+    zIndexOffset:1000
+  }).addTo(mapaLeaflet).bindPopup('Estás aquí');
   if(!listaOrd.length) return;
   var col=colorAct();
-  var cercanas=listaOrd.slice(0,40);
+  // Todas las del radio; si hay demasiadas (radios grandes), las más baratas
+  var cercanas=listaOrd.length<=MAX_MARCADORES ? listaOrd.slice()
+    : listaOrd.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);}).slice(0,MAX_MARCADORES);
+  $('g98mapaestado').textContent=listaOrd.length>MAX_MARCADORES
+    ? 'En el mapa: las '+MAX_MARCADORES+' más baratas de '+listaOrd.length+' en '+$('g98radio').value+' km.' : '';
   var minP=Math.min.apply(null,cercanas.map(function(e){return num(e.PrecioProducto);}));
   var anillos=['#1e9e4a','#f2b400','#e2001a'];
   var porPrecio=cercanas.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
