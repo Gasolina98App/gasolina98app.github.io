@@ -242,7 +242,7 @@
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
-      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (28/09/2026): Gasolina 95 <strong>1,935 €/l</strong> · Gasóleo A <strong>1,932 €/l</strong><!--PRECIO-MEDIO-END--></p>
+      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -543,7 +543,7 @@ function badgeIcon(marca,anillo){
   });
 }
 
-var circuloRadio=null, MAX_MARCADORES=200;
+var circuloRadio=null, MAX_MARCADORES=200, MAX_CERCANAS=60;
 function asegurarMapa(lat,lon,radioKm){
   if(!mapaLeaflet){
     mapaLeaflet=L.map('g98mapa').setView([lat,lon],13);
@@ -570,11 +570,16 @@ function pintarMapa(){
   }).addTo(mapaLeaflet).bindPopup('Estás aquí');
   if(!listaOrd.length) return;
   var col=colorAct();
-  // Todas las del radio; si hay demasiadas (radios grandes), las más baratas
-  var cercanas=listaOrd.length<=MAX_MARCADORES ? listaOrd.slice()
-    : listaOrd.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);}).slice(0,MAX_MARCADORES);
+  // Todas las del radio; si hay demasiadas (radios grandes), las más cercanas
+  // siempre (listaOrd ya va por distancia) y el resto hasta el tope, las más baratas
+  var cercanas=listaOrd.slice(0,MAX_MARCADORES);
+  if(listaOrd.length>MAX_MARCADORES){
+    cercanas=listaOrd.slice(0,MAX_CERCANAS).concat(
+      listaOrd.slice(MAX_CERCANAS).sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);})
+        .slice(0,MAX_MARCADORES-MAX_CERCANAS));
+  }
   $('g98mapaestado').textContent=listaOrd.length>MAX_MARCADORES
-    ? 'En el mapa: las '+MAX_MARCADORES+' más baratas de '+listaOrd.length+' en '+$('g98radio').value+' km.' : '';
+    ? 'En el mapa: las '+MAX_CERCANAS+' más cercanas y las más baratas del resto ('+MAX_MARCADORES+' de '+listaOrd.length+' en '+$('g98radio').value+' km). En la lista están todas.' : '';
   var minP=Math.min.apply(null,cercanas.map(function(e){return num(e.PrecioProducto);}));
   var anillos=['#1e9e4a','#f2b400','#e2001a'];
   var porPrecio=cercanas.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
