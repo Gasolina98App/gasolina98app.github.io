@@ -242,7 +242,7 @@
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
-      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (29/09/2026): Gasolina 95 <strong>1,935 €/l</strong> · Gasóleo A <strong>1,929 €/l</strong><!--PRECIO-MEDIO-END--></p>
+      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -543,7 +543,7 @@ function badgeIcon(marca,anillo){
   });
 }
 
-var circuloRadio=null, MAX_MARCADORES=200, MAX_CERCANAS=60;
+var circuloRadio=null, rendererPuntos=null, ZOOM_INSIGNIAS=13, puntosMapa=[], modoInsignias=null, popupAbierto=false;
 function asegurarMapa(lat,lon,radioKm){
   if(!mapaLeaflet){
     mapaLeaflet=L.map('g98mapa').setView([lat,lon],13);
@@ -551,6 +551,17 @@ function asegurarMapa(lat,lon,radioKm){
       maxZoom:19, attribution:'&copy; OpenStreetMap'
     }).addTo(mapaLeaflet);
     capaMarcadores=L.layerGroup().addTo(mapaLeaflet);
+    // Canvas: permite pintar miles de puntos sin que el móvil se atasque
+    rendererPuntos=L.canvas({padding:0.5});
+    mapaLeaflet.on('popupopen',function(){popupAbierto=true;});
+    mapaLeaflet.on('popupclose',function(){popupAbierto=false;
+      if(modoInsignias!==(mapaLeaflet.getZoom()>=ZOOM_INSIGNIAS)) dibujarMarcadores();});
+    mapaLeaflet.on('zoomend moveend',function(){
+      var ins=mapaLeaflet.getZoom()>=ZOOM_INSIGNIAS;
+      // Con puntos no hace falta redibujar al mover; con insignias sí (solo las visibles)
+      if(popupAbierto || (!ins && modoInsignias===false)) return;
+      dibujarMarcadores();
+    });
   }
   // Círculo del radio elegido y zoom ajustado a él
   if(circuloRadio){circuloRadio.remove();}
@@ -558,54 +569,72 @@ function asegurarMapa(lat,lon,radioKm){
   mapaLeaflet.fitBounds(circuloRadio.getBounds(),{padding:[10,10]});
 }
 
+function popupEstacion(p){
+  var e=p.e;
+  var mapaUrl='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
+  return '<strong>'+e['Rótulo']+'</strong><br>'
+    +'<span style="color:'+colorAct()+';font-weight:bold;">'+e.PrecioProducto+' €/l'+(p.esMin?' 🏆':'')+'</span><br>'
+    +e['Dirección']+' · '+e.Localidad+'<br>'
+    +e.Horario+' · <a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>';
+}
+
+// Pinta TODAS las gasolineras del radio: con el mapa alejado como puntos de color
+// (canvas, ligero); al acercar, insignias con la marca de las que se ven en pantalla
+function dibujarMarcadores(){
+  if(!mapaLeaflet) return;
+  capaMarcadores.clearLayers();
+  var ins=mapaLeaflet.getZoom()>=ZOOM_INSIGNIAS;
+  modoInsignias=ins;
+  var vista=mapaLeaflet.getBounds().pad(0.3);
+  puntosMapa.forEach(function(p){
+    var ll=[num(p.e.Latitud),num(p.e['Longitud (WGS84)'])];
+    var m;
+    if(ins){
+      if(!vista.contains(ll)) return;
+      m=L.marker(ll,{icon:badgeIcon(p.marca,p.anillo)});
+    }else{
+      m=L.circleMarker(ll,{renderer:rendererPuntos,radius:p.esMin?9:7,color:'#fff',weight:2,fillColor:p.anillo,fillOpacity:1});
+    }
+    m.addTo(capaMarcadores).bindPopup(popupEstacion(p));
+    m.on('popupopen',function(){
+      if(typeof gtag==='function'){gtag('event','mapa_marcador_click',{rotulo:p.e['Rótulo']});}
+    });
+  });
+  $('g98mapaestado').textContent=(!ins && puntosMapa.length>40)
+    ? puntosMapa.length+' gasolineras en '+$('g98radio').value+' km. Acerca el mapa para ver la marca de cada una.' : '';
+}
+
 function pintarMapa(){
   if(!miPos) return;
+  puntosMapa=[];
+  modoInsignias=null;
+  popupAbierto=false;
+  if(capaMarcadores){capaMarcadores.clearLayers();}
   asegurarMapa(miPos.lat,miPos.lon,num($('g98radio').value));
-  capaMarcadores.clearLayers();
   if(marcadorYo){marcadorYo.remove();}
   marcadorYo=L.marker([miPos.lat,miPos.lon],{
     icon:L.divIcon({className:'',html:'<div class="g98-yo"><div class="g98-yo-halo"></div><div class="g98-yo-punto"></div></div>',
       iconSize:[44,44],iconAnchor:[22,22],popupAnchor:[0,-12]}),
     zIndexOffset:1000
   }).addTo(mapaLeaflet).bindPopup('Estás aquí');
-  if(!listaOrd.length) return;
-  var col=colorAct();
-  // Todas las del radio; si hay demasiadas (radios grandes), las más cercanas
-  // siempre (listaOrd ya va por distancia) y el resto hasta el tope, las más baratas
-  var cercanas=listaOrd.slice(0,MAX_MARCADORES);
-  if(listaOrd.length>MAX_MARCADORES){
-    cercanas=listaOrd.slice(0,MAX_CERCANAS).concat(
-      listaOrd.slice(MAX_CERCANAS).sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);})
-        .slice(0,MAX_MARCADORES-MAX_CERCANAS));
-  }
-  $('g98mapaestado').textContent=listaOrd.length>MAX_MARCADORES
-    ? 'En el mapa: las '+MAX_CERCANAS+' más cercanas y las más baratas del resto ('+MAX_MARCADORES+' de '+listaOrd.length+' en '+$('g98radio').value+' km). En la lista están todas.' : '';
-  var minP=Math.min.apply(null,cercanas.map(function(e){return num(e.PrecioProducto);}));
+  if(!listaOrd.length){$('g98mapaestado').textContent='';return;}
+  // Sin tope: todas las gasolineras del radio
+  var todas=listaOrd;
+  var minP=Math.min.apply(null,todas.map(function(e){return num(e.PrecioProducto);}));
   var anillos=['#1e9e4a','#f2b400','#e2001a'];
-  var porPrecio=cercanas.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
-  cercanas.forEach(function(e){
-    var esMin=Math.abs(num(e.PrecioProducto)-minP)<0.0005;
-    var mapaUrl='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
-    var pos=porPrecio.indexOf(e);
-    var tercio=Math.min(2,Math.floor(pos*3/porPrecio.length));
-    var marca=marcaDeRotulo(e['Rótulo']);
-    var m=L.marker([num(e.Latitud),num(e['Longitud (WGS84)'])],{
-      icon: badgeIcon(marca,anillos[tercio])
-    }).addTo(capaMarcadores);
-    m.bindPopup(
-      '<strong>'+e['Rótulo']+'</strong><br>'
-      +'<span style="color:'+col+';font-weight:bold;">'+e.PrecioProducto+' €/l'+(esMin?' 🏆':'')+'</span><br>'
-      +e['Dirección']+' · '+e.Localidad+'<br>'
-      +e.Horario+' · <a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>'
-    );
-    m.on('popupopen',function(){
-      if(typeof gtag==='function'){gtag('event','mapa_marcador_click',{rotulo:e['Rótulo']});}
-    });
+  var porPrecio=todas.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
+  var posPrecio=new Map();
+  porPrecio.forEach(function(e,i){posPrecio.set(e,i);});
+  puntosMapa=todas.map(function(e){
+    var tercio=Math.min(2,Math.floor(posPrecio.get(e)*3/porPrecio.length));
+    return {e:e, anillo:anillos[tercio], marca:marcaDeRotulo(e['Rótulo']),
+      esMin:Math.abs(num(e.PrecioProducto)-minP)<0.0005};
   });
+  dibujarMarcadores();
   if(typeof gtag==='function'){
     gtag('event','mapa_cargado',{
       carburante: $('g98prod').options[$('g98prod').selectedIndex].text,
-      estaciones_mostradas: cercanas.length
+      estaciones_mostradas: puntosMapa.length
     });
   }
 }
