@@ -198,6 +198,22 @@
   .hint .hint-actions button.ghost{background:#fff;border:1px solid #cfe0fb;color:#2e3160;}
   /* Insignias de marca en el mapa */
   .leaflet-div-icon{background:transparent;border:0;}
+  /* Mapa a pantalla completa (CSS, funciona también en iPhone) */
+  #g98mapawrap{position:relative;}
+  #g98fsbtn{position:absolute;top:10px;right:10px;z-index:1001;width:auto;margin:0;display:inline-flex;align-items:center;gap:6px;
+    background:#2e3160;color:#fff;border:2px solid #fff;border-radius:10px;padding:10px 14px;font-size:16px;font-weight:bold;
+    box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;line-height:1.1;}
+  #g98fsley{display:none;}
+  body.g98-fs{overflow:hidden;}
+  body.g98-fs #g98mapawrap{position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#fff;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  body.g98-fs #g98mapa{height:100% !important;border-radius:0 !important;}
+  body.g98-fs #g98fsbtn{top:calc(12px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));font-size:20px;padding:14px 20px;background:#e2001a;}
+  body.g98-fs .leaflet-control-zoom a{width:52px !important;height:52px !important;line-height:52px !important;font-size:30px !important;}
+  body.g98-fs .leaflet-top.leaflet-left{top:env(safe-area-inset-top);}
+  body.g98-fs #g98fsley{display:flex;position:absolute;left:0;right:0;bottom:env(safe-area-inset-bottom);z-index:1001;background:rgba(255,255,255,.95);
+    justify-content:space-around;padding:12px 8px 16px;font-size:17px;font-weight:bold;color:#333;}
+  #g98fsley i{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:-3px;margin-right:6px;}
   .g98-yo{position:relative;width:44px;height:44px;}
   .g98-yo-halo{position:absolute;inset:0;border-radius:50%;background:rgba(66,133,244,.25);animation:g98pulso 2s ease-out infinite;}
   .g98-yo-punto{position:absolute;left:13px;top:13px;width:18px;height:18px;border-radius:50%;background:#4285f4;
@@ -242,7 +258,7 @@
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
-      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (29/09/2026): Gasolina 95 <strong>1,934 €/l</strong> · Gasóleo A <strong>1,929 €/l</strong><!--PRECIO-MEDIO-END--></p>
+      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -260,7 +276,11 @@
         <option value="50">A menos de 50 km</option>
         <option value="100">A menos de 100 km</option>
       </select>
-      <div id="g98mapa" style="height:340px;border-radius:10px;overflow:hidden;background:#e8edf3;"></div>
+      <div id="g98mapawrap">
+        <div id="g98mapa" style="height:340px;border-radius:10px;overflow:hidden;background:#e8edf3;"></div>
+        <button type="button" id="g98fsbtn" aria-label="Ver el mapa en pantalla completa">⛶ Pantalla completa</button>
+        <div id="g98fsley"><span><i style="background:#1e9e4a"></i>Barata</span><span><i style="background:#f2b400"></i>Media</span><span><i style="background:#e2001a"></i>Cara</span></div>
+      </div>
       <div id="g98mapaestado" style="font-size:13px;color:#666;margin-top:8px;min-height:18px;"></div>
       <div id="g98leyenda"><span style="background:#1e9e4a;"></span>Más barata cerca<span style="background:#f2b400;"></span>Precio medio<span style="background:#e2001a;"></span>Más cara cerca</div>
     </div>
@@ -638,6 +658,25 @@ function pintarMapa(){
     });
   }
 }
+
+// Pantalla completa del mapa. Se hace con CSS (la API Fullscreen no funciona en iPhone)
+// y se apunta en el historial para que el botón "atrás" del móvil también salga.
+var mapaFs=false;
+function ponerPantallaCompleta(activar,desdeAtras){
+  if(activar===mapaFs) return;
+  mapaFs=activar;
+  document.body.classList.toggle('g98-fs',activar);
+  var b=$('g98fsbtn');
+  b.textContent=activar?'✕ Salir':'⛶ Pantalla completa';
+  b.setAttribute('aria-label',activar?'Salir de pantalla completa':'Ver el mapa en pantalla completa');
+  if(activar){history.pushState({g98fs:1},'');}
+  else if(!desdeAtras && history.state && history.state.g98fs){history.back();}
+  setTimeout(function(){if(mapaLeaflet){mapaLeaflet.invalidateSize();}},60);
+  if(typeof gtag==='function'){gtag('event',activar?'mapa_pantalla_completa':'mapa_salir_pantalla_completa');}
+}
+$('g98fsbtn').addEventListener('click',function(ev){ev.stopPropagation();ponerPantallaCompleta(!mapaFs);});
+window.addEventListener('popstate',function(){if(mapaFs){ponerPantallaCompleta(false,true);}});
+document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&mapaFs){ponerPantallaCompleta(false);}});
 
 function pedirUbicacion(){
   if(!navigator.geolocation){
