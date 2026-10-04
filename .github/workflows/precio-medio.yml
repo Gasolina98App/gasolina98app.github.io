@@ -55,3 +55,12 @@ jobs:
           PRUEBA: ${{ inputs.prueba }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
         run: node scripts/enviar-alertas.js
+
+  # Publica en GitHub Pages la web con los datos nuevos y regenera las fichas por provincia/municipio
+  publicar:
+    needs: actualizar
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/publicar.yml
