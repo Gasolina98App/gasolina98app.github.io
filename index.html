@@ -227,6 +227,20 @@
   #g98leyenda{font-size:12px;color:#666;margin-top:8px;}
   #g98leyenda span{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px 0 10px;vertical-align:middle;}
   #g98leyenda span:first-child{margin-left:0;}
+  /* Alertas de bajada de precio: botones y letra grandes */
+  .g98-alerta-btn{display:block;width:100%;margin:10px 0 0;padding:14px 12px;min-height:52px;border-radius:10px;
+    background:#fff;color:#2e3160;border:2px solid #2e3160;font-size:18px;font-weight:bold;cursor:pointer;line-height:1.2;}
+  .g98-alerta-btn.on{background:#1e9e4a;border-color:#1e9e4a;color:#fff;}
+  .leaflet-popup-content .g98-alerta-btn{font-size:17px;}
+  #g98alertas{border:2px solid #2e3160;background:#f7f8ff;}
+  #g98alertas .al-t{font-size:20px;font-weight:bold;color:#2e3160;margin:0 0 8px;}
+  #g98alertas .al-d{font-size:17px;line-height:1.5;color:#222;}
+  #g98alertas .al-ahora{font-size:17px;margin-top:8px;color:#1e7a3c;font-weight:bold;}
+  #g98alertas button{font-size:18px;font-weight:bold;padding:14px;min-height:52px;border-radius:10px;cursor:pointer;margin:12px 0 0;}
+  #g98alertas .al-borrar{background:#fff;color:#c8102e;border:2px solid #c8102e;}
+  #g98alertas .al-ref{background:#2e3160;color:#fff;border:0;}
+  #g98toast{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:100000;max-width:600px;margin:0 auto;
+    background:#2e3160;color:#fff;font-size:18px;line-height:1.4;padding:16px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.35);}
 </style>
 </head>
 <body>
@@ -255,10 +269,13 @@
         <button id="g98install-no" class="ghost">Ahora no</button>
       </div>
     </div>
+    <!-- Mis alertas de bajada de precio (se muestra solo si hay una gasolinera vigilada) -->
+    <div id="g98alertas" class="panel hidden" aria-live="polite"></div>
+    <div id="g98toast" class="hidden" role="status"></div>
     <div class="panel">
       <h1>Gasolineras baratas cerca de ti: precios oficiales de hoy</h1>
       <p class="intro">Al abrir la app te pedimos tu ubicación para mostrarte en el mapa las gasolineras que tienes alrededor, con su precio. Toca un marcador para ver los detalles, o baja para ver la lista completa ordenada por cercanía. Datos del Ministerio para la Transición Ecológica, actualizados a diario. Gratis y sin registro.</p>
-      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (04/10/2026): Gasolina 95 <strong>1,806 €/l</strong> · Gasóleo A <strong>1,909 €/l</strong><!--PRECIO-MEDIO-END--></p>
+      <p id="g98preciomedio" class="intro" style="font-weight:bold;color:#2e3160;"><!--PRECIO-MEDIO-START-->Precio medio en España hoy (27/09/2026): Gasolina 95 <strong>1,931 €/l</strong> · Gasóleo A <strong>1,930 €/l</strong><!--PRECIO-MEDIO-END--></p>
       <select id="g98prod">
         <option value="1" selected>Gasolina 95 E5</option>
         <option value="3">Gasolina 98 E5</option>
@@ -507,6 +524,7 @@ function aDato(e,prod){
   var p=e['p'+prod];
   if(!p) return null;
   return {
+    IDEESS: e.i,
     'Rótulo': e.r,
     'Dirección': e.d,
     Localidad: e.l,
@@ -595,7 +613,8 @@ function popupEstacion(p){
   return '<strong>'+e['Rótulo']+'</strong><br>'
     +'<span style="color:'+colorAct()+';font-weight:bold;">'+e.PrecioProducto+' €/l'+(p.esMin?' 🏆':'')+'</span><br>'
     +e['Dirección']+' · '+e.Localidad+'<br>'
-    +e.Horario+' · <a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>';
+    +e.Horario+' · <a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>'
+    +htmlBotonAlerta(e);
 }
 
 // Pinta TODAS las gasolineras del radio: con el mapa alejado como puntos de color
@@ -615,9 +634,12 @@ function dibujarMarcadores(){
     }else{
       m=L.circleMarker(ll,{renderer:rendererPuntos,radius:p.esMin?9:7,color:'#fff',weight:2,fillColor:p.anillo,fillOpacity:1});
     }
-    m.addTo(capaMarcadores).bindPopup(popupEstacion(p));
-    m.on('popupopen',function(){
+    // Contenido como función: se genera al abrir, así el botón de alerta refleja el estado actual
+    m.addTo(capaMarcadores).bindPopup(function(){return popupEstacion(p);});
+    m.on('popupopen',function(ev){
       if(typeof gtag==='function'){gtag('event','mapa_marcador_click',{rotulo:p.e['Rótulo']});}
+      var el=ev.popup.getElement(), b=el&&el.querySelector('.g98-alerta-btn');
+      if(b){b.addEventListener('click',function(){activarAlerta(datoAlerta(p.e));});}
     });
   });
   $('g98mapaestado').textContent=(!ins && puntosMapa.length>40)
@@ -701,6 +723,7 @@ function iniciarMapa(){
   $('g98mapaestado').textContent='Cargando estaciones…';
   fetch('estaciones.json').then(function(r){return r.json();}).then(function(d){
     estacionesNac=d.estaciones||[];
+    pintarPanelAlertas();
     pedirUbicacion();
   }).catch(function(){
     $('g98mapaestado').textContent='No se pudo cargar el listado de estaciones. Comprueba tu conexión.';
@@ -746,7 +769,10 @@ function pintarTramo(){
       +'<span class="precio" style="color:'+col+';">'+e.PrecioProducto+' €/l'+(esMin?' 🏆':'')+'</span></div>'
       +'<div class="dir">'+e['Dirección']+' · '+e.Localidad
       +(e._d!==undefined?' · a '+e._d.toFixed(1)+' km':'')+'</div>'
-      +'<div class="hor">'+e.Horario+' · <a href="'+mapa+'" target="_blank" rel="noopener">Cómo llegar</a></div>';
+      +'<div class="hor">'+e.Horario+' · <a href="'+mapa+'" target="_blank" rel="noopener">Cómo llegar</a></div>'
+      +htmlBotonAlerta(e);
+    var bAl=div.querySelector('.g98-alerta-btn');
+    if(bAl){bAl.addEventListener('click',function(){activarAlerta(datoAlerta(e));});}
     cont.appendChild(div);
   });
   mostrados=Math.min(mostrados+PAGINA,listaOrd.length);
@@ -792,6 +818,173 @@ $('g98geo').addEventListener('click',function(){
     miPos={lat:pos.coords.latitude,lon:pos.coords.longitude};
     if(datos.length){pintar();}else{buscar();}
   },function(){estado('No se pudo obtener la ubicación (revisa los permisos).');});
+});
+
+/* ---------- Alertas de bajada de precio ----------
+   Se guarda UNA gasolinera vigilada como tags de OneSignal (g_id, g_prod, g_precio en céntimos,
+   g_nombre) y una copia en localStorage para pintar el estado. La GitHub Action
+   (scripts/enviar-alertas.js) envía el aviso filtrando por esos tags cuando el precio baja. */
+var LS_ALERTA='g98_alerta', TAGS_ALERTA=['g_id','g_prod','g_precio','g_nombre'];
+// Mismo redondeo que en scripts/enviar-alertas.js (primero a milésimas para evitar errores de coma flotante)
+function aCentimos(precio){return Math.round(Math.round(num(precio)*1000)/10);}
+function leerAlerta(){try{return JSON.parse(localStorage.getItem(LS_ALERTA)||'null');}catch(err){return null;}}
+function claveAlerta(id,prod){return String(id)+'|'+String(prod);}
+function esVigilada(id,prod){var a=leerAlerta();return !!a&&claveAlerta(a.id,a.prod)===claveAlerta(id,prod);}
+function nombreProdActual(){var s=$('g98prod');return s.options[s.selectedIndex].text;}
+function nombreProd(prod){
+  var o=$('g98prod').querySelector('option[value="'+prod+'"]');
+  return o?o.textContent:'';
+}
+function datoAlerta(e){
+  return {id:String(e.IDEESS||''), prod:String($('g98prod').value), prodNombre:nombreProdActual(),
+    precio:e.PrecioProducto, cent:aCentimos(e.PrecioProducto),
+    rotulo:e['Rótulo']||'Gasolinera', localidad:e.Localidad||''};
+}
+function textoBotonAlerta(id,prod){return esVigilada(id,prod)?'✅ Te avisaremos si baja':'🔔 Avísame si baja';}
+function htmlBotonAlerta(e){
+  if(!e.IDEESS) return '';
+  var prod=$('g98prod').value;
+  return '<button type="button" class="g98-alerta-btn'+(esVigilada(e.IDEESS,prod)?' on':'')+'" data-k="'
+    +claveAlerta(e.IDEESS,prod).replace(/"/g,'')+'">'+textoBotonAlerta(e.IDEESS,prod)+'</button>';
+}
+function refrescarBotonesAlerta(){
+  var bs=document.querySelectorAll('.g98-alerta-btn');
+  for(var i=0;i<bs.length;i++){
+    var k=(bs[i].getAttribute('data-k')||'').split('|');
+    bs[i].textContent=textoBotonAlerta(k[0],k[1]);
+    bs[i].classList.toggle('on',esVigilada(k[0],k[1]));
+  }
+}
+var toastTimer=null;
+function toast(msg,ms){
+  var t=$('g98toast'); t.textContent=msg; t.classList.remove('hidden');
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.add('hidden');},ms||6000);
+}
+function aviso(msg){$('g98toast').classList.add('hidden'); alert(msg);}
+// Ejecuta fn cuando OneSignal esté listo; si no carga (bloqueador, sin red) avisa al usuario
+function conOneSignal(fn){
+  var hecho=false;
+  var t=setTimeout(function(){
+    if(!hecho){aviso('No se pudo conectar con el servicio de avisos. Si usas un bloqueador de anuncios, desactívalo para esta web y vuelve a intentarlo.');}
+  },12000);
+  window.OneSignalDeferred=window.OneSignalDeferred||[];
+  OneSignalDeferred.push(async function(OneSignal){
+    hecho=true; clearTimeout(t);
+    try{await fn(OneSignal);}
+    catch(err){aviso('No se pudo guardar la alerta. Inténtalo de nuevo dentro de un momento.');}
+  });
+}
+async function asegurarPermisoPush(OneSignal){
+  if(typeof Notification==='undefined') return 'nosoporta';
+  if(OneSignal.Notifications.isPushSupported && !OneSignal.Notifications.isPushSupported()) return 'nosoporta';
+  if(Notification.permission==='denied') return 'denegado';
+  if(Notification.permission!=='granted'){await OneSignal.Notifications.requestPermission();}
+  if(Notification.permission!=='granted') return Notification.permission==='denied'?'denegado':'nodado';
+  if(!OneSignal.User.PushSubscription.optedIn){await OneSignal.User.PushSubscription.optIn();}
+  return 'ok';
+}
+function tagsDe(a){
+  return {g_id:a.id, g_prod:String(a.prod), g_precio:String(a.cent),
+    g_nombre:(a.rotulo+(a.localidad?' ('+a.localidad+')':'')).slice(0,80)};
+}
+var MSG_IOS='En iPhone primero hay que instalar la app: toca Compartir ⬆️ y elige "Añadir a pantalla de inicio". Luego ábrela desde el icono y vuelve a pulsar "Avísame si baja".';
+var MSG_DENEGADO='Tienes las notificaciones bloqueadas para esta web. Actívalas en los ajustes del navegador (toca el candado junto a la dirección → Notificaciones → Permitir) y vuelve a intentarlo.';
+function guardarAlerta(a,prev,evento){
+  conOneSignal(async function(OneSignal){
+    var r=await asegurarPermisoPush(OneSignal);
+    if(r==='nosoporta'){aviso(esIOS()&&!esStandalone()?MSG_IOS:'Este navegador no permite notificaciones.');return;}
+    if(r==='denegado'){aviso(MSG_DENEGADO);return;}
+    if(r!=='ok'){aviso('Para avisarte necesitamos que permitas las notificaciones. Vuelve a pulsar el botón y elige "Permitir".');return;}
+    await OneSignal.User.addTags(tagsDe(a));
+    a.ts=Date.now();
+    localStorage.setItem(LS_ALERTA,JSON.stringify(a));
+    if(typeof gtag==='function'){gtag('event',evento,{carburante:a.prodNombre,rotulo:a.rotulo,sustituye:!!prev});}
+    pintarPanelAlertas(); refrescarBotonesAlerta();
+    toast('✅ Listo. Te avisaremos si '+a.rotulo+' baja de '+a.precio+' €/l ('+a.prodNombre+').',8000);
+  });
+}
+function activarAlerta(a){
+  if(!a.id || !(a.cent>0)){aviso('No se puede vigilar esta gasolinera.');return;}
+  var prev=leerAlerta();
+  if(prev && claveAlerta(prev.id,prev.prod)===claveAlerta(a.id,a.prod)){
+    toast('Ya estás vigilando esta gasolinera. Puedes quitarla en "Mis alertas", arriba del todo.');
+    return;
+  }
+  if(prev && !confirm('Solo se puede vigilar UNA gasolinera.\n\nAhora vigilas: '+prev.rotulo+' ('+prev.localidad+'), '+prev.prodNombre
+      +'.\n\n¿Quieres cambiarla por '+a.rotulo+' ('+a.localidad+'), '+a.prodNombre+'?')) return;
+  if(typeof Notification==='undefined'){aviso(esIOS()&&!esStandalone()?MSG_IOS:'Este navegador no permite notificaciones.');return;}
+  if(Notification.permission==='denied'){aviso(MSG_DENEGADO);return;}
+  toast('Activando la alerta…',15000);
+  guardarAlerta(a,prev,'alerta_activada');
+}
+function borrarAlerta(){
+  var a=leerAlerta(); if(!a) return;
+  if(!confirm('¿Dejar de vigilar '+a.rotulo+' ('+a.localidad+')? Ya no te avisaremos si baja el precio.')) return;
+  localStorage.removeItem(LS_ALERTA);
+  window.OneSignalDeferred=window.OneSignalDeferred||[];
+  OneSignalDeferred.push(async function(OneSignal){try{await OneSignal.User.removeTags(TAGS_ALERTA);}catch(err){}});
+  if(typeof gtag==='function'){gtag('event','alerta_borrada',{carburante:a.prodNombre,rotulo:a.rotulo});}
+  pintarPanelAlertas(); refrescarBotonesAlerta();
+  toast('Alerta quitada. Ya no vigilas ninguna gasolinera.');
+}
+// Precio actual de la gasolinera vigilada según estaciones.json (null si no se conoce)
+function precioActualAlerta(a){
+  if(!estacionesNac) return null;
+  for(var i=0;i<estacionesNac.length;i++){
+    var e=estacionesNac[i];
+    if(String(e.i)===String(a.id)){return e['p'+a.prod]||null;}
+  }
+  return null;
+}
+function pintarPanelAlertas(){
+  var box=$('g98alertas'), a=leerAlerta();
+  box.innerHTML='';
+  if(!a){box.classList.add('hidden');return;}
+  box.classList.remove('hidden');
+  function el(tag,cls,txt){var n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n;}
+  box.appendChild(el('div','al-t','🔔 Mis alertas'));
+  var d=el('div','al-d');
+  d.appendChild(document.createTextNode('Vigilas: '));
+  d.appendChild(el('strong',null,a.rotulo));
+  d.appendChild(document.createTextNode(a.localidad?' ('+a.localidad+')':''));
+  d.appendChild(document.createElement('br'));
+  d.appendChild(document.createTextNode('Carburante: '+(a.prodNombre||nombreProd(a.prod))));
+  d.appendChild(document.createElement('br'));
+  d.appendChild(document.createTextNode('Te avisaremos si baja de '));
+  d.appendChild(el('strong',null,a.precio+' €/l'));
+  box.appendChild(d);
+  var ahora=precioActualAlerta(a);
+  if(ahora){
+    var ahoraTxt=ahora.toFixed(3).replace('.',',');
+    var ahoraCent=aCentimos(ahoraTxt);
+    if(ahoraCent<a.cent){
+      box.appendChild(el('div','al-ahora','⬇️ Ahora está a '+ahoraTxt+' €/l: ¡ha bajado!'));
+      var bRef=el('button','al-ref','Avisarme solo si baja de '+ahoraTxt+' €/l');
+      bRef.addEventListener('click',function(){
+        var n=Object.assign({},a,{precio:ahoraTxt,cent:ahoraCent});
+        toast('Actualizando la alerta…',15000);
+        guardarAlerta(n,a,'alerta_activada');
+      });
+      box.appendChild(bRef);
+    }else if(ahoraCent>a.cent){
+      box.appendChild(el('div','al-d','Precio de hoy: '+ahoraTxt+' €/l'));
+    }
+  }
+  var bDel=el('button','al-borrar','Dejar de vigilar');
+  bDel.addEventListener('click',borrarAlerta);
+  box.appendChild(bDel);
+}
+pintarPanelAlertas();
+// Si la copia local y los tags de OneSignal no coinciden (p. ej. tras reinstalar), se reenvían los tags
+window.OneSignalDeferred=window.OneSignalDeferred||[];
+OneSignalDeferred.push(async function(OneSignal){
+  var a=leerAlerta(); if(!a) return;
+  try{
+    if(!OneSignal.User.PushSubscription.optedIn) return;
+    var t=(OneSignal.User.getTags&&OneSignal.User.getTags())||{};
+    var q=tagsDe(a);
+    if(t.g_id!==q.g_id||t.g_prod!==q.g_prod||t.g_precio!==q.g_precio){await OneSignal.User.addTags(q);}
+  }catch(err){}
 });
 
 // Registro del service worker
