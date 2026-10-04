@@ -213,6 +213,11 @@
   body.g98-fs .leaflet-top.leaflet-left{top:env(safe-area-inset-top);}
   body.g98-fs #g98fsley{display:flex;position:absolute;left:0;right:0;bottom:env(safe-area-inset-bottom);z-index:1001;background:rgba(255,255,255,.95);
     justify-content:space-around;padding:12px 8px 16px;font-size:17px;font-weight:bold;color:#333;}
+  /* Selector de radio dentro del mapa a pantalla completa (encima de la leyenda) */
+  #g98fsradio{display:none;}
+  body.g98-fs #g98fsradio{display:block;position:absolute;left:calc(12px + env(safe-area-inset-left));bottom:calc(64px + env(safe-area-inset-bottom));
+    z-index:1001;width:auto;max-width:70%;margin:0;min-height:52px;padding:10px 14px;font-size:18px;font-weight:bold;color:#2e3160;
+    background:#fff;border:2px solid #2e3160;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.35);}
   #g98fsley i{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:-3px;margin-right:6px;}
   .g98-yo{position:relative;width:44px;height:44px;}
   .g98-yo-halo{position:absolute;inset:0;border-radius:50%;background:rgba(66,133,244,.25);animation:g98pulso 2s ease-out infinite;}
@@ -296,6 +301,7 @@
       <div id="g98mapawrap">
         <div id="g98mapa" style="height:340px;border-radius:10px;overflow:hidden;background:#e8edf3;"></div>
         <button type="button" id="g98fsbtn" aria-label="Ver el mapa en pantalla completa">⛶ Pantalla completa</button>
+        <select id="g98fsradio" aria-label="Distancia de búsqueda"></select>
         <div id="g98fsley"><span><i style="background:#1e9e4a"></i>Barata</span><span><i style="background:#f2b400"></i>Media</span><span><i style="background:#e2001a"></i>Cara</span></div>
       </div>
       <div id="g98mapaestado" style="font-size:13px;color:#666;margin-top:8px;min-height:18px;"></div>
@@ -492,8 +498,23 @@ $('g98prod').addEventListener('change',function(){
   if(miPos && estacionesNac){reconstruirDesdeEstaciones();}
 });
 $('g98radio').addEventListener('change',function(){
+  $('g98fsradio').value=this.value;
   if(miPos && estacionesNac){reconstruirDesdeEstaciones();}
 });
+// Copia del selector de radio para el mapa a pantalla completa: mismas opciones, texto corto
+(function(){
+  var orig=$('g98radio'), fs=$('g98fsradio');
+  Array.prototype.forEach.call(orig.options,function(o){
+    var op=document.createElement('option'); op.value=o.value; op.textContent='📍 '+o.value+' km';
+    fs.appendChild(op);
+  });
+  fs.value=orig.value;
+  fs.addEventListener('change',function(){
+    orig.value=this.value;
+    orig.dispatchEvent(new Event('change'));
+    if(typeof gtag==='function'){gtag('event','mapa_radio_pantalla_completa',{radio_km:this.value});}
+  });
+})();
 
 fetch(API+'Listados/Provincias/').then(function(r){return r.json();}).then(function(ps){
   var sel=$('g98prov'); sel.innerHTML='<option value="">Elige provincia…</option>';
