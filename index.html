@@ -585,7 +585,7 @@ var circuloRadio=null, rendererPuntos=null, ZOOM_INSIGNIAS=13, puntosMapa=[], mo
 function asegurarMapa(lat,lon,radioKm){
   if(!mapaLeaflet){
     mapaLeaflet=L.map('g98mapa').setView([lat,lon],13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
       maxZoom:19, attribution:'&copy; OpenStreetMap'
     }).addTo(mapaLeaflet);
     capaMarcadores=L.layerGroup().addTo(mapaLeaflet);
@@ -605,6 +605,8 @@ function asegurarMapa(lat,lon,radioKm){
   if(circuloRadio){circuloRadio.remove();}
   circuloRadio=L.circle([lat,lon],{radius:radioKm*1000,color:'#2e3160',weight:1,fillOpacity:0.04,interactive:false}).addTo(mapaLeaflet);
   mapaLeaflet.fitBounds(circuloRadio.getBounds(),{padding:[10,10]});
+  // Si el mapa se midió antes de tener su tamaño final se queda gris: recalcular
+  setTimeout(function(){if(mapaLeaflet){mapaLeaflet.invalidateSize();}},250);
 }
 
 function popupEstacion(p){
@@ -987,9 +989,26 @@ OneSignalDeferred.push(async function(OneSignal){
   }catch(err){}
 });
 
-// Registro del service worker
+// Registro del service worker y actualización automática
+// Cuando se publica una versión nueva, el SW nuevo toma el control ('controllerchange').
+// Para no recargar mientras el usuario está mirando la app, se recarga si está en
+// segundo plano o, si no, la próxima vez que vuelva a ella.
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js');
+  var swHabia=!!navigator.serviceWorker.controller, swRecargar=false, swOcultaDesde=0;
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    document.addEventListener('visibilitychange',function(){
+      if(document.visibilityState==='hidden'){swOcultaDesde=Date.now();return;}
+      if(swRecargar){location.reload();return;}
+      // Al volver tras un rato fuera (PWA abierta en segundo plano), buscar versión nueva
+      if(swOcultaDesde && Date.now()-swOcultaDesde>30*60*1000){reg.update().catch(function(){});}
+    });
+  }).catch(function(){});
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    // Primera instalación: no hay versión anterior que sustituir
+    if(!swHabia){swHabia=true;return;}
+    if(document.visibilityState==='hidden'){location.reload();}
+    else{swRecargar=true;}
+  });
 }
 
 // Mapa de gasolineras cercanas: es lo primero que se intenta al abrir la app
