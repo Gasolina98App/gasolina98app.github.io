@@ -6,7 +6,17 @@ on:
     - cron: '30 6 * * *'
     # 12:15 UTC ~= 14:15 CET/CEST, refresco de mediodía
     - cron: '15 12 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      prueba:
+        description: 'Alertas: IDEESS de una gasolinera para mandar un aviso de PRUEBA a quien la vigile, o "todos" (vacío = no)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Alertas: simular sin enviar nada (solo log)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -24,6 +34,9 @@ jobs:
       - name: Calcular y escribir el precio medio de hoy
         run: node scripts/actualizar-precio-medio.js
 
+      - name: Guardar estaciones de la ejecución anterior (para las alertas de bajada de precio)
+        run: cp estaciones.json "$RUNNER_TEMP/estaciones-previas.json" || echo "No hay estaciones.json previo"
+
       - name: Generar listado nacional de estaciones para el mapa
         run: node scripts/generar-estaciones.js
 
@@ -32,3 +45,13 @@ jobs:
         with:
           commit_message: 'chore: precio medio nacional y estaciones del dia'
           file_pattern: 'index.html sw.js sitemap.xml precio-medio.json estaciones.json'
+
+      - name: Enviar alertas de bajada de precio (OneSignal)
+        continue-on-error: true
+        env:
+          ONESIGNAL_REST_API_KEY: ${{ secrets.ONESIGNAL_REST_API_KEY }}
+          ESTACIONES_PREVIAS: ${{ runner.temp }}/estaciones-previas.json
+          MAX_ESTACIONES: '3000'
+          PRUEBA: ${{ inputs.prueba }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+        run: node scripts/enviar-alertas.js
