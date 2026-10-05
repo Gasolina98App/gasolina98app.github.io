@@ -2,7 +2,7 @@
 // 1) Notificaciones push (OneSignal)  2) Caché de la "carcasa" de la app
 importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 
-var CACHE = 'g98-app-v41';
+var CACHE = 'g98-app-v42';
 var SHELL = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 // Datos que cambian a diario: siempre red primero, la copia solo sin conexión
 var DATOS = ['/estaciones.json', '/precio-medio.json'];
