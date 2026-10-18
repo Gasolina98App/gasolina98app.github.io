@@ -237,6 +237,7 @@
     background:#fff;color:#2e3160;border:2px solid #2e3160;font-size:18px;font-weight:bold;cursor:pointer;line-height:1.2;}
   .g98-alerta-btn.on{background:#1e9e4a;border-color:#1e9e4a;color:#fff;}
   .leaflet-popup-content .g98-alerta-btn{font-size:17px;}
+  .g98-reportar-link{display:block;text-align:center;margin-top:8px;font-size:13px;color:#888;text-decoration:underline;}
   #g98alertas{border:2px solid #2e3160;background:#f7f8ff;}
   #g98alertas .al-t{font-size:20px;font-weight:bold;color:#2e3160;margin:0 0 8px;}
   #g98alertas .al-d{font-size:17px;line-height:1.5;color:#222;}
@@ -643,7 +644,8 @@ function popupEstacion(p){
     +'<span style="color:'+colorAct()+';font-weight:bold;">'+e.PrecioProducto+' €/l'+(p.esMin?' 🏆':'')+'</span><br>'
     +e['Dirección']+' · '+e.Localidad+'<br>'
     +e.Horario+' · <a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>'
-    +htmlBotonAlerta(e);
+    +htmlBotonAlerta(e)
+    +htmlEnlaceReportar(e);
 }
 
 // Pinta TODAS las gasolineras del radio: con el mapa alejado como puntos de color
@@ -799,7 +801,8 @@ function pintarTramo(){
       +'<div class="dir">'+e['Dirección']+' · '+e.Localidad
       +(e._d!==undefined?' · a '+e._d.toFixed(1)+' km':'')+'</div>'
       +'<div class="hor">'+e.Horario+' · <a href="'+mapa+'" target="_blank" rel="noopener">Cómo llegar</a></div>'
-      +htmlBotonAlerta(e);
+      +htmlBotonAlerta(e)
+      +htmlEnlaceReportar(e);
     var bAl=div.querySelector('.g98-alerta-btn');
     if(bAl){bAl.addEventListener('click',function(){activarAlerta(datoAlerta(e));});}
     cont.appendChild(div);
@@ -875,6 +878,21 @@ function htmlBotonAlerta(e){
   var prod=$('g98prod').value;
   return '<button type="button" class="g98-alerta-btn'+(esVigilada(e.IDEESS,prod)?' on':'')+'" data-k="'
     +claveAlerta(e.IDEESS,prod).replace(/"/g,'')+'">'+textoBotonAlerta(e.IDEESS,prod)+'</button>';
+}
+// Enlace "mailto" para que el usuario reporte un precio incorrecto u otro fallo de esta gasolinera.
+// Sin backend propio: el correo se redacta en el dispositivo del usuario, nada se envía desde la app.
+function mailtoReportar(e){
+  var asunto='Gasolina98 App - Precio incorrecto: '+(e['Rótulo']||'gasolinera');
+  var cuerpo='Gasolinera: '+(e['Rótulo']||'')+'\n'
+    +'Dirección: '+(e['Dirección']||'')+', '+(e.Localidad||'')+'\n'
+    +'Carburante: '+nombreProdActual()+'\n'
+    +'Precio mostrado en la app: '+e.PrecioProducto+' €/l\n'
+    +'ID (IDEESS): '+(e.IDEESS||'desconocido')+'\n\n'
+    +'Cuéntanos qué está mal:\n';
+  return 'mailto:info@gasolina98.es?subject='+encodeURIComponent(asunto)+'&body='+encodeURIComponent(cuerpo);
+}
+function htmlEnlaceReportar(e){
+  return '<a class="g98-reportar-link" href="'+mailtoReportar(e)+'">⚠️ ¿Precio incorrecto u otro fallo? Repórtalo</a>';
 }
 function refrescarBotonesAlerta(){
   var bs=document.querySelectorAll('.g98-alerta-btn');
