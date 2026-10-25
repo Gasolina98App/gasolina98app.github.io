@@ -247,6 +247,16 @@
   #g98alertas .al-ref{background:#2e3160;color:#fff;border:0;}
   #g98toast{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:100000;max-width:600px;margin:0 auto;
     background:#2e3160;color:#fff;font-size:18px;line-height:1.4;padding:16px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.35);}
+  /* Descuentos por marca (tarjetas de fidelización) */
+  #g98descuentos-lista{margin-top:12px;}
+  .g98-desc-fila{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #eee;}
+  .g98-desc-fila:first-child{border-top:0;}
+  .g98-desc-badge{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font:bold 11px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+  .g98-desc-nombre{flex:1;font-size:14px;font-weight:bold;color:#222;}
+  .g98-desc-fila input{width:72px;flex-shrink:0;padding:8px;border-radius:8px;border:1px solid #ccc;font-size:15px;text-align:right;margin:0;}
+  .g98-desc-fila span.g98-desc-unidad{font-size:13px;color:#666;width:34px;flex-shrink:0;}
+  .g98-precio-neto{font-size:13px;color:#1e7a3c;font-weight:bold;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -318,6 +328,15 @@
           <button id="g98btn">Buscar</button>
           <button id="g98geo">📍 Ordenar por cercanía</button>
           <div id="g98estado"></div>
+        </div>
+      </details>
+    </div>
+    <div class="panel">
+      <details id="g98descuentos">
+        <summary style="font-weight:bold;color:#2e3160;cursor:pointer;">💳 Configura tus descuentos por marca</summary>
+        <div style="margin-top:4px;">
+          <p style="font-size:13px;color:#666;margin:8px 0 0;line-height:1.5;">Si tienes tarjeta o app de fidelización con alguna marca, apunta aquí cuántos céntimos por litro te descuenta. Verás el precio con tu descuento junto al oficial en cada gasolinera de esa marca. No cambia el precio oficial ni el orden de la lista ni del mapa: es solo informativo.</p>
+          <div id="g98descuentos-lista"></div>
         </div>
       </details>
     </div>
@@ -601,6 +620,46 @@ function marcaDeRotulo(rotulo){
   }
   return {k:'',ini:'⛽',color:'#6b7280'};
 }
+
+/* ---------- Descuentos por marca (informativo: no cambia precio oficial, orden ni colores) ----------
+   Se guarda en localStorage un objeto {REPSOL:3, CEPSA:2.5, ...} con céntimos por litro por marca
+   (clave MARCAS[i].k). Solo se ofrece configurar marcas reconocidas por marcaDeRotulo(). */
+var LS_DESCUENTOS='g98_descuentos';
+function leerDescuentos(){try{return JSON.parse(localStorage.getItem(LS_DESCUENTOS)||'{}');}catch(err){return {};}}
+function guardarDescuentos(d){localStorage.setItem(LS_DESCUENTOS,JSON.stringify(d));}
+function descuentoDeMarca(marcaK){var d=leerDescuentos();var v=d[marcaK];return (typeof v==='number'&&v>0)?v:0;}
+function pintarPanelDescuentos(){
+  var cont=$('g98descuentos-lista'); cont.innerHTML='';
+  var guardados=leerDescuentos();
+  MARCAS.forEach(function(m){
+    var fila=document.createElement('div'); fila.className='g98-desc-fila';
+    var badge=document.createElement('div'); badge.className='g98-desc-badge'; badge.style.background=m.color; badge.textContent=m.ini;
+    var nombre=document.createElement('div'); nombre.className='g98-desc-nombre'; nombre.textContent=m.k;
+    var input=document.createElement('input'); input.type='number'; input.min='0'; input.step='0.1'; input.inputMode='decimal';
+    input.placeholder='0'; input.value=guardados[m.k]?String(guardados[m.k]):'';
+    input.addEventListener('change',function(){
+      var v=parseFloat(String(this.value).replace(',','.'));
+      var d=leerDescuentos();
+      if(!v||v<=0){delete d[m.k];} else {d[m.k]=v;}
+      guardarDescuentos(d);
+      if(typeof gtag==='function'){gtag('event','descuento_marca_guardado',{marca:m.k,valor:v||0});}
+      if(listaOrd.length){pintarTramo();mostrados=Math.min(mostrados,listaOrd.length);}
+      if(mapaLeaflet){dibujarMarcadores();}
+    });
+    var unidad=document.createElement('span'); unidad.className='g98-desc-unidad'; unidad.textContent='c/L';
+    fila.appendChild(badge); fila.appendChild(nombre); fila.appendChild(input); fila.appendChild(unidad);
+    cont.appendChild(fila);
+  });
+}
+// Línea de precio con descuento para una gasolinera, o '' si su marca no tiene descuento configurado
+function htmlPrecioNeto(e){
+  var marca=marcaDeRotulo(e['Rótulo']);
+  var cent=descuentoDeMarca(marca.k);
+  if(!cent) return '';
+  var neto=num(e.PrecioProducto)-(cent/100);
+  if(neto<=0) return '';
+  return '<div class="g98-precio-neto">Con tu descuento ('+String(cent).replace('.',',')+' c/L): '+neto.toFixed(3).replace('.',',')+' €/l</div>';
+}
 function badgeIcon(marca,anillo){
   return L.divIcon({
     className:'',
@@ -642,6 +701,7 @@ function popupEstacion(p){
   var mapaUrl='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
   return '<strong>'+e['Rótulo']+'</strong><br>'
     +'<span style="color:'+colorAct()+';font-weight:bold;">'+e.PrecioProducto+' €/l'+(p.esMin?' 🏆':'')+'</span><br>'
+    +htmlPrecioNeto(e)
     +e['Dirección']+' · '+e.Localidad+'<br>'
     +e.Horario+' · <a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>'
     +htmlBotonAlerta(e)
@@ -798,6 +858,7 @@ function pintarTramo(){
     if(esMin){div.style.background='#f4faf6';div.style.boxShadow='0 0 0 2px '+col+'33';}
     div.innerHTML='<div class="top"><strong>'+e['Rótulo']+'</strong>'
       +'<span class="precio" style="color:'+col+';">'+e.PrecioProducto+' €/l'+(esMin?' 🏆':'')+'</span></div>'
+      +htmlPrecioNeto(e)
       +'<div class="dir">'+e['Dirección']+' · '+e.Localidad
       +(e._d!==undefined?' · a '+e._d.toFixed(1)+' km':'')+'</div>'
       +'<div class="hor">'+e.Horario+' · <a href="'+mapa+'" target="_blank" rel="noopener">Cómo llegar</a></div>'
@@ -1022,6 +1083,7 @@ function pintarPanelAlertas(){
   box.appendChild(bDel);
 }
 pintarPanelAlertas();
+pintarPanelDescuentos();
 // Si la copia local y los tags de OneSignal no coinciden (p. ej. tras reinstalar), se reenvían los tags
 window.OneSignalDeferred=window.OneSignalDeferred||[];
 OneSignalDeferred.push(async function(OneSignal){
