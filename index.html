@@ -256,7 +256,11 @@
   .g98-desc-nombre{flex:1;font-size:14px;font-weight:bold;color:#222;}
   .g98-desc-fila input{width:72px;flex-shrink:0;padding:8px;border-radius:8px;border:1px solid #ccc;font-size:15px;text-align:right;margin:0;}
   .g98-desc-fila span.g98-desc-unidad{font-size:13px;color:#666;width:34px;flex-shrink:0;}
-  .g98-precio-neto{font-size:13px;color:#1e7a3c;font-weight:bold;margin-top:4px;}
+  .g98-precio-neto{font-size:13px;color:#1e7a3c;font-weight:bold;margin-top:4px;border-radius:6px;}
+  .g98-desc-fila input.on{border:2px solid #1e7a3c;background:#f4faf6;color:#1e7a3c;font-weight:bold;}
+  #g98descuentos-n{font-weight:normal;font-size:13px;color:#1e7a3c;}
+  @keyframes g98flash{0%{background:#fff3b0;}100%{background:transparent;}}
+  .g98-precio-neto.nuevo{animation:g98flash 2.5s ease-out;}
 </style>
 </head>
 <body>
@@ -333,7 +337,7 @@
     </div>
     <div class="panel">
       <details id="g98descuentos">
-        <summary style="font-weight:bold;color:#2e3160;cursor:pointer;">💳 Configura tus descuentos por marca</summary>
+        <summary style="font-weight:bold;color:#2e3160;cursor:pointer;">💳 Configura tus descuentos por marca <span id="g98descuentos-n"></span></summary>
         <div style="margin-top:4px;">
           <p style="font-size:13px;color:#666;margin:8px 0 0;line-height:1.5;">Si tienes tarjeta o app de fidelización con alguna marca, apunta aquí cuántos céntimos por litro te descuenta. Verás el precio con tu descuento junto al oficial en cada gasolinera de esa marca. No cambia el precio oficial ni el orden de la lista ni del mapa: es solo informativo.</p>
           <div id="g98descuentos-lista"></div>
@@ -628,6 +632,28 @@ var LS_DESCUENTOS='g98_descuentos';
 function leerDescuentos(){try{return JSON.parse(localStorage.getItem(LS_DESCUENTOS)||'{}');}catch(err){return {};}}
 function guardarDescuentos(d){localStorage.setItem(LS_DESCUENTOS,JSON.stringify(d));}
 function descuentoDeMarca(marcaK){var d=leerDescuentos();var v=d[marcaK];return (typeof v==='number'&&v>0)?v:0;}
+function contarDescuentos(){
+  var d=leerDescuentos(), n=0;
+  for(var k in d){if(descuentoDeMarca(k)) n++;}
+  $('g98descuentos-n').textContent=n?'· '+n+(n===1?' marca activa':' marcas activas'):'';
+}
+// Repinta lista y mapa con los descuentos actuales, conservando cuántas tarjetas había desplegadas
+// ("Ver 30 más") y sin perder el scroll. Devuelve cuántas gasolineras de esa marca hay en pantalla.
+function refrescarDescuentos(marcaK){
+  var enLista=0;
+  if(listaOrd.length){
+    var cont=$('g98resultados');
+    var objetivo=Math.max(PAGINA,mostrados);
+    Array.prototype.slice.call(cont.querySelectorAll('.card')).forEach(function(c){c.parentNode.removeChild(c);});
+    mostrados=0;
+    while(mostrados<objetivo && mostrados<listaOrd.length){pintarTramo();}
+    listaOrd.forEach(function(e){if(marcaDeRotulo(e['Rótulo']).k===marcaK) enLista++;});
+    Array.prototype.forEach.call(cont.querySelectorAll('.g98-precio-neto'),function(el){el.classList.add('nuevo');});
+  }
+  if(mapaLeaflet){dibujarMarcadores();}
+  contarDescuentos();
+  return enLista;
+}
 function pintarPanelDescuentos(){
   var cont=$('g98descuentos-lista'); cont.innerHTML='';
   var guardados=leerDescuentos();
@@ -637,19 +663,40 @@ function pintarPanelDescuentos(){
     var nombre=document.createElement('div'); nombre.className='g98-desc-nombre'; nombre.textContent=m.k;
     var input=document.createElement('input'); input.type='number'; input.min='0'; input.step='0.1'; input.inputMode='decimal';
     input.placeholder='0'; input.value=guardados[m.k]?String(guardados[m.k]):'';
-    input.addEventListener('change',function(){
-      var v=parseFloat(String(this.value).replace(',','.'));
+    input.setAttribute('aria-label','Descuento '+m.k+' en céntimos por litro');
+    if(guardados[m.k]) input.classList.add('on');
+    var ultimo=guardados[m.k]||0;
+    function guardar(){
+      var v=parseFloat(String(input.value).replace(',','.'));
+      if(!v||v<=0) v=0;
+      if(v===ultimo) return; // input + change suelen llegar seguidos con el mismo valor
+      ultimo=v;
       var d=leerDescuentos();
-      if(!v||v<=0){delete d[m.k];} else {d[m.k]=v;}
+      if(!v){delete d[m.k];} else {d[m.k]=v;}
       guardarDescuentos(d);
-      if(typeof gtag==='function'){gtag('event','descuento_marca_guardado',{marca:m.k,valor:v||0});}
-      if(listaOrd.length){pintarTramo();mostrados=Math.min(mostrados,listaOrd.length);}
-      if(mapaLeaflet){dibujarMarcadores();}
-    });
+      input.classList.toggle('on',v>0);
+      if(typeof gtag==='function'){gtag('event','descuento_marca_guardado',{marca:m.k,valor:v});}
+      var n=refrescarDescuentos(m.k);
+      var nombreMarca=m.k.charAt(0)+m.k.slice(1).toLowerCase();
+      if(v>0){
+        if(n>0){toast('✅ '+nombreMarca+': '+String(v).replace('.',',')+' c/L guardado. Ya ves tu precio en verde en '+n+(n===1?' gasolinera':' gasolineras')+' de la lista.',5000);}
+        else if(listaOrd.length){toast('✅ '+nombreMarca+': '+String(v).replace('.',',')+' c/L guardado. No hay '+nombreMarca+' en los resultados de ahora; lo verás cuando aparezca alguna.',5000);}
+        else {toast('✅ '+nombreMarca+': '+String(v).replace('.',',')+' c/L guardado. Lo verás en verde al buscar gasolineras.',5000);}
+      } else {
+        toast('Descuento de '+nombreMarca+' quitado.',3000);
+      }
+    }
+    // 'input' con debounce para que se vea al momento mientras escribes; 'change' por si el teclado
+    // cierra sin disparar input (algunos Android) o se usa el spinner del campo.
+    var tmr=null;
+    input.addEventListener('input',function(){clearTimeout(tmr);tmr=setTimeout(guardar,600);});
+    input.addEventListener('change',function(){clearTimeout(tmr);guardar();});
+    input.addEventListener('keydown',function(ev){if(ev.key==='Enter'){ev.preventDefault();input.blur();}});
     var unidad=document.createElement('span'); unidad.className='g98-desc-unidad'; unidad.textContent='c/L';
     fila.appendChild(badge); fila.appendChild(nombre); fila.appendChild(input); fila.appendChild(unidad);
     cont.appendChild(fila);
   });
+  contarDescuentos();
 }
 // Línea de precio con descuento para una gasolinera, o '' si su marca no tiene descuento configurado
 function htmlPrecioNeto(e){
