@@ -2,8 +2,8 @@ name: Actualizar precio medio nacional
 
 on:
   schedule:
-    # 06:30 UTC ~= 08:30 CET/CEST, después de la actualización diaria de MITECO
-    - cron: '30 6 * * *'
+    # 05:00 UTC ~= 06:00 CET / 07:00 CEST, después de la actualización diaria de MITECO
+    - cron: '0 5 * * *'
     # 12:15 UTC ~= 14:15 CET/CEST, refresco de mediodía
     - cron: '15 12 * * *'
   workflow_dispatch:
