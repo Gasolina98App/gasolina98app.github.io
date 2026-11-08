@@ -303,6 +303,7 @@
         <option value="4">Gasóleo A</option>
         <option value="5">Gasóleo Premium</option>
         <option value="6">GLP</option>
+        <option value="ev">⚡ Vehículo eléctrico</option>
       </select>
     </div>
     <div class="panel">
@@ -323,7 +324,8 @@
       <div id="g98leyenda"><span style="background:#1e9e4a;"></span>Más barata cerca<span style="background:#f2b400;"></span>Precio medio<span style="background:#e2001a;"></span>Más cara cerca</div>
     </div>
     <div id="g98resultados"></div>
-    <div class="panel">
+    <div id="g98ocm-atribucion" class="intro hidden" style="font-size:12px;color:#888;margin:-4px 0 14px;">Datos de los puntos de recarga: <a href="https://openchargemap.org/" target="_blank" rel="noopener">Open Charge Map</a> (CC BY 4.0)</div>
+    <div class="panel" id="g98manual-panel">
       <details id="g98manual">
         <summary style="font-weight:bold;color:#2e3160;cursor:pointer;">📍 Buscar por provincia o municipio en su lugar</summary>
         <div style="margin-top:12px;">
@@ -335,7 +337,7 @@
         </div>
       </details>
     </div>
-    <div class="panel">
+    <div class="panel" id="g98descuentos-panel">
       <details id="g98descuentos">
         <summary style="font-weight:bold;color:#2e3160;cursor:pointer;">💳 Configura tus descuentos por marca <span id="g98descuentos-n"></span></summary>
         <div style="margin-top:4px;">
@@ -372,9 +374,14 @@
         <summary>¿Por qué el precio en el surtidor puede no coincidir exactamente?</summary>
         <p>Las gasolineras comunican el precio una vez al día y pueden cambiarlo después; además, muchas aplican descuentos con tarjeta o app propia que no aparecen en el precio oficial. Usa el dato como referencia para elegir zona y estación.</p>
       </details>
+      <details>
+        <summary>¿De dónde salen los datos de los cargadores eléctricos?</summary>
+        <p>De <a href="https://openchargemap.org/" target="_blank" rel="noopener">Open Charge Map</a>, una base de datos abierta y colaborativa de puntos de recarga (licencia CC BY 4.0). Muestra el operador, los conectores y la potencia de cada punto, pero al ser un proyecto colaborativo puede no estar siempre al día: confirma siempre con la app del operador antes de desplazarte.</p>
+      </details>
     </div>
     <footer>
       Precios: Ministerio para la Transición Ecológica · Actualización diaria<br>
+      Cargadores eléctricos: <a href="https://openchargemap.org/" target="_blank" rel="noopener">Open Charge Map</a><br>
       Un servicio gratuito de <a href="https://www.gasolina98.es">Gasolina98.es</a><br>
       <a href="https://www.gasolina98.es/p/aviso-legal.html">Aviso legal</a> ·
       <a href="https://www.gasolina98.es/p/politica-de-privacidad.html">Política de privacidad</a> ·
@@ -397,6 +404,7 @@
 <script>
 (function(){
 var API='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/';
+var OCM_API_KEY='af63c2af-d30d-4adc-97b5-36e490776c1e'; // Open Charge Map (openchargemap.org), clave gratuita de solo lectura
 var $=function(id){return document.getElementById(id);};
 var datos=[], miPos=null, blogCargado=false, estacionesNac=null, mapaLeaflet=null, capaMarcadores=null, marcadorYo=null;
 
@@ -518,19 +526,29 @@ function cargarBlog(){
 }
 
 /* ---------- Buscador ---------- */
-var COLOR={'1':'#1e9e4a','20':'#0e6b32','3':'#c8102e','4':'#333333','5':'#1560bd','6':'#f39200'};
+var COLOR={'1':'#1e9e4a','20':'#0e6b32','3':'#c8102e','4':'#333333','5':'#1560bd','6':'#f39200','ev':'#0ea5e9'};
 function colorAct(){return COLOR[$('g98prod').value]||'#2e3160';}
 function num(s){return parseFloat(String(s).replace(',','.'));}
 function estado(t){$('g98estado').textContent=t;}
 
+function esEV(){return $('g98prod').value==='ev';}
+function actualizarVisibilidadModo(){
+  var ev=esEV();
+  $('g98manual-panel').classList.toggle('hidden',ev);
+  $('g98descuentos-panel').classList.toggle('hidden',ev);
+  $('g98ocm-atribucion').classList.toggle('hidden',!ev);
+  $('g98leyenda').classList.toggle('hidden',ev);
+}
 $('g98prod').addEventListener('change',function(){
   this.style.borderColor=colorAct();
-  if(miPos && estacionesNac){reconstruirDesdeEstaciones();}
+  actualizarVisibilidadModo();
+  if(miPos){ if(esEV()){buscarCargadoresOCM();} else if(estacionesNac){reconstruirDesdeEstaciones();} }
 });
 $('g98radio').addEventListener('change',function(){
   $('g98fsradio').value=this.value;
-  if(miPos && estacionesNac){reconstruirDesdeEstaciones();}
+  if(miPos){ if(esEV()){buscarCargadoresOCM();} else if(estacionesNac){reconstruirDesdeEstaciones();} }
 });
+actualizarVisibilidadModo();
 // Copia del selector de radio para el mapa a pantalla completa: mismas opciones, texto corto
 (function(){
   var orig=$('g98radio'), fs=$('g98fsradio');
@@ -594,6 +612,48 @@ function reconstruirDesdeEstaciones(){
     return distKm(miPos.lat,miPos.lon,num(e.Latitud),num(e['Longitud (WGS84)']))<=radioKm;
   });
   pintar();
+}
+
+/* ---------- Cargadores eléctricos (Open Charge Map, https://openchargemap.org/, CC BY 4.0) ---------- */
+function resumenConectores(conexiones){
+  if(!conexiones || !conexiones.length) return 'Conectores sin especificar';
+  return conexiones.map(function(c){
+    var tipo=(c.ConnectionType&&c.ConnectionType.Title)||'Conector';
+    var kw=c.PowerKW?(' · '+c.PowerKW+' kW'):'';
+    var cant=c.Quantity&&c.Quantity>1?(' x'+c.Quantity):'';
+    return tipo+kw+cant;
+  }).join(', ');
+}
+function mapearCargadorOCM(poi){
+  var a=poi.AddressInfo||{};
+  if(a.Latitude==null||a.Longitude==null) return null;
+  return {
+    IDEESS:'ocm_'+poi.ID,
+    'Rótulo': a.Title || (poi.OperatorInfo&&poi.OperatorInfo.Title) || 'Punto de recarga',
+    'Dirección': a.AddressLine1||'',
+    Localidad: a.Town||'',
+    Latitud:String(a.Latitude),
+    'Longitud (WGS84)':String(a.Longitude),
+    _operador:(poi.OperatorInfo&&poi.OperatorInfo.Title)||'Operador no especificado',
+    _estado:(poi.StatusType&&poi.StatusType.Title)||'',
+    _numPuntos:poi.NumberOfPoints||(poi.Connections?poi.Connections.length:0)||1,
+    _conectores:resumenConectores(poi.Connections)
+  };
+}
+function buscarCargadoresOCM(){
+  if(!miPos) return;
+  var radioKm=num($('g98radio').value);
+  $('g98mapaestado').textContent='Buscando cargadores…';
+  var url='https://api.openchargemap.io/v3/poi/?output=json&latitude='+miPos.lat+'&longitude='+miPos.lon
+    +'&distance='+radioKm+'&distanceunit=KM&maxresults=200&compact=false&verbose=false&key='+OCM_API_KEY;
+  fetch(url).then(function(r){return r.json();}).then(function(lista){
+    datos=(lista||[]).map(mapearCargadorOCM).filter(Boolean);
+    pintar();
+  }).catch(function(){
+    $('g98mapaestado').textContent='No se pudieron cargar los cargadores. Comprueba tu conexión.';
+    datos=[]; pintar();
+  });
+  if(typeof gtag==='function'){gtag('event','busqueda_cargadores_ev',{radio_km:radioKm});}
 }
 
 var MARCAS=[
@@ -746,6 +806,13 @@ function asegurarMapa(lat,lon,radioKm){
 function popupEstacion(p){
   var e=p.e;
   var mapaUrl='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
+  if(e._operador!==undefined){
+    return '<strong>'+e['Rótulo']+'</strong><br>'
+      +'<span style="color:'+COLOR.ev+';font-weight:bold;">'+e._operador+'</span>'+(e._estado?' · '+e._estado:'')+'<br>'
+      +(e['Dirección']||e.Localidad?(e['Dirección']+(e['Dirección']&&e.Localidad?' · ':'')+e.Localidad+'<br>'):'')
+      +e._conectores+(e._numPuntos>1?' · '+e._numPuntos+' puntos':'')+'<br>'
+      +'<a href="'+mapaUrl+'" target="_blank" rel="noopener">Cómo llegar</a>';
+  }
   return '<strong>'+e['Rótulo']+'</strong><br>'
     +'<span style="color:'+colorAct()+';font-weight:bold;">'+e.PrecioProducto+' €/l'+(p.esMin?' 🏆':'')+'</span><br>'
     +htmlPrecioNeto(e)
@@ -781,7 +848,7 @@ function dibujarMarcadores(){
     });
   });
   $('g98mapaestado').textContent=(!ins && puntosMapa.length>40)
-    ? puntosMapa.length+' gasolineras en '+$('g98radio').value+' km. Acerca el mapa para ver la marca de cada una.' : '';
+    ? puntosMapa.length+(esEV()?' cargadores en ':' gasolineras en ')+$('g98radio').value+' km. Acerca el mapa para ver la marca de cada uno.' : '';
 }
 
 function pintarMapa(){
@@ -798,18 +865,24 @@ function pintarMapa(){
     zIndexOffset:1000
   }).addTo(mapaLeaflet).bindPopup('Estás aquí');
   if(!listaOrd.length){$('g98mapaestado').textContent='';return;}
-  // Sin tope: todas las gasolineras del radio
   var todas=listaOrd;
-  var minP=Math.min.apply(null,todas.map(function(e){return num(e.PrecioProducto);}));
-  var anillos=['#1e9e4a','#f2b400','#e2001a'];
-  var porPrecio=todas.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
-  var posPrecio=new Map();
-  porPrecio.forEach(function(e,i){posPrecio.set(e,i);});
-  puntosMapa=todas.map(function(e){
-    var tercio=Math.min(2,Math.floor(posPrecio.get(e)*3/porPrecio.length));
-    return {e:e, anillo:anillos[tercio], marca:marcaDeRotulo(e['Rótulo']),
-      esMin:Math.abs(num(e.PrecioProducto)-minP)<0.0005};
-  });
+  if(esEV()){
+    puntosMapa=todas.map(function(e){
+      return {e:e, anillo:COLOR.ev, marca:{k:'',ini:'⚡',color:COLOR.ev}, esMin:false};
+    });
+  } else {
+    // Sin tope: todas las gasolineras del radio
+    var minP=Math.min.apply(null,todas.map(function(e){return num(e.PrecioProducto);}));
+    var anillos=['#1e9e4a','#f2b400','#e2001a'];
+    var porPrecio=todas.slice().sort(function(a,b){return num(a.PrecioProducto)-num(b.PrecioProducto);});
+    var posPrecio=new Map();
+    porPrecio.forEach(function(e,i){posPrecio.set(e,i);});
+    puntosMapa=todas.map(function(e){
+      var tercio=Math.min(2,Math.floor(posPrecio.get(e)*3/porPrecio.length));
+      return {e:e, anillo:anillos[tercio], marca:marcaDeRotulo(e['Rótulo']),
+        esMin:Math.abs(num(e.PrecioProducto)-minP)<0.0005};
+    });
+  }
   dibujarMarcadores();
   if(typeof gtag==='function'){
     gtag('event','mapa_cargado',{
@@ -848,7 +921,7 @@ function pedirUbicacion(){
   navigator.geolocation.getCurrentPosition(function(pos){
     miPos={lat:pos.coords.latitude,lon:pos.coords.longitude};
     $('g98mapaestado').textContent='';
-    reconstruirDesdeEstaciones();
+    if(esEV()){buscarCargadoresOCM();}else{reconstruirDesdeEstaciones();}
   },function(){
     $('g98mapaestado').innerHTML='No se pudo obtener tu ubicación (revisa los permisos). '
       +'<button id="g98reintentar" style="width:auto;display:inline;padding:4px 10px;margin:0;">Reintentar</button>';
@@ -872,7 +945,10 @@ function iniciarMapa(){
 var PAGINA=30, listaOrd=[], mostrados=0, precioMin=0;
 function pintar(){
   var cont=$('g98resultados'); cont.innerHTML='';
-  if(!datos.length){cont.innerHTML='<p>'+(miPos?'No hay gasolineras en ese radio. Prueba a ampliar la distancia.':'No hay resultados para esa búsqueda.')+'</p>';listaOrd=[];pintarMapa();return;}
+  if(!datos.length){
+    var queNoHay=esEV()?'cargadores':'gasolineras';
+    cont.innerHTML='<p>'+(miPos?'No hay '+queNoHay+' en ese radio. Prueba a ampliar la distancia.':'No hay resultados para esa búsqueda.')+'</p>';listaOrd=[];pintarMapa();return;
+  }
   var col=colorAct();
   var nombreProd=$('g98prod').options[$('g98prod').selectedIndex].text;
   listaOrd=datos.slice();
@@ -886,7 +962,7 @@ function pintar(){
   var head=document.createElement('div');
   head.className='chip'; head.style.background=col; head.textContent=nombreProd;
   cont.appendChild(head);
-  ofrecerPushTrasResultados(cont);
+  if(!esEV()){ofrecerPushTrasResultados(cont);}
   mostrados=0;
   pintarTramo();
   pintarMapa();
@@ -895,13 +971,23 @@ function pintar(){
 function pintarTramo(){
   var cont=$('g98resultados'), col=colorAct();
   var viejo=$('g98mas'); if(viejo){viejo.parentNode.removeChild(viejo);}
+  var ev=esEV();
   listaOrd.slice(mostrados,mostrados+PAGINA).forEach(function(e){
-    var p=num(e.PrecioProducto);
-    var esMin=Math.abs(p-precioMin)<0.0005;
     var mapa='https://www.google.com/maps?q='+num(e.Latitud)+','+num(e['Longitud (WGS84)']);
     var div=document.createElement('div');
     div.className='card';
     div.style.borderLeft='6px solid '+col;
+    if(ev){
+      div.innerHTML='<div class="top"><strong>'+e['Rótulo']+'</strong></div>'
+        +'<div class="dir" style="color:'+col+';font-weight:bold;">'+e._operador+(e._estado?' · '+e._estado:'')+'</div>'
+        +'<div class="dir">'+(e['Dirección']||'')+(e['Dirección']&&e.Localidad?' · ':'')+(e.Localidad||'')
+        +(e._d!==undefined?' · a '+e._d.toFixed(1)+' km':'')+'</div>'
+        +'<div class="hor">'+e._conectores+(e._numPuntos>1?' · '+e._numPuntos+' puntos':'')+' · <a href="'+mapa+'" target="_blank" rel="noopener">Cómo llegar</a></div>';
+      cont.appendChild(div);
+      return;
+    }
+    var p=num(e.PrecioProducto);
+    var esMin=Math.abs(p-precioMin)<0.0005;
     if(esMin){div.style.background='#f4faf6';div.style.boxShadow='0 0 0 2px '+col+'33';}
     div.innerHTML='<div class="top"><strong>'+e['Rótulo']+'</strong>'
       +'<span class="precio" style="color:'+col+';">'+e.PrecioProducto+' €/l'+(esMin?' 🏆':'')+'</span></div>'
@@ -927,7 +1013,7 @@ function pintarTramo(){
     });
     cont.appendChild(b);
   }
-  estado(listaOrd.length+' gasolineras encontradas. Mostrando las '+mostrados+(miPos?' más cercanas.':' más baratas.'));
+  estado(listaOrd.length+(ev?' cargadores encontrados. Mostrando los ':' gasolineras encontradas. Mostrando las ')+mostrados+(miPos||ev?' más cercanas.':' más baratas.'));
 }
 
 function buscar(){
