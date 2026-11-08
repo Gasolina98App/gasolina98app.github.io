@@ -56,6 +56,16 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
         run: node scripts/enviar-alertas.js
 
+      - name: Publicar precio medio en X
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '13 5 * * *'
+        continue-on-error: true
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: node scripts/publicar-x.js
+
   # Publica en GitHub Pages la web con los datos nuevos y regenera las fichas por provincia/municipio
   publicar:
     needs: actualizar
