@@ -66,6 +66,12 @@ jobs:
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
         run: node scripts/publicar-x.js
 
+      - name: Guardar marca de "ya publicado hoy en X" (evita tuits duplicados si el workflow se dispara varias veces el mismo día)
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: marca de tweet de precio medio publicado'
+          file_pattern: 'ultimo-tweet-precio.txt'
+
   # Publica en GitHub Pages la web con los datos nuevos y regenera las fichas por provincia/municipio
   publicar:
     needs: actualizar
