@@ -6,6 +6,7 @@ const crypto = require('crypto');
 
 const RAIZ = path.join(__dirname, '..');
 const URL_APP = 'https://app.gasolina98.es';
+const MARCADOR = path.join(RAIZ, 'ultimo-tweet-precio.txt');
 
 const API_KEY = process.env.X_API_KEY;
 const API_SECRET = process.env.X_API_SECRET;
@@ -52,6 +53,12 @@ async function main() {
   }
 
   const datos = JSON.parse(fs.readFileSync(path.join(RAIZ, 'precio-medio.json'), 'utf8'));
+
+  if (fs.existsSync(MARCADOR) && fs.readFileSync(MARCADOR, 'utf8').trim() === datos.fecha) {
+    console.log('Ya se publicó el precio del ' + datos.fecha + ' en X, no se repite.');
+    return;
+  }
+
   const fechaEs = fechaEnEs(datos.fecha);
 
   const texto =
@@ -75,6 +82,7 @@ async function main() {
     throw new Error('Error publicando en X (' + res.status + '): ' + body);
   }
 
+  fs.writeFileSync(MARCADOR, datos.fecha);
   console.log('Publicado en X:', body);
 }
 
